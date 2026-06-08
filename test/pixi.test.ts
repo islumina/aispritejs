@@ -1,5 +1,5 @@
 import type { Sprite, Spritesheet, Texture } from "pixi.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { SpriteGraph } from "../src/index.js";
 import { MissingTextureError, createPixiSpriteAnimator } from "../src/pixi/index.js";
 
@@ -201,5 +201,86 @@ describe("createPixiSpriteAnimator", () => {
         expect.arrayContaining(["walk_0", "walk_1"]),
       );
     }
+  });
+});
+
+// A minimal graph with a non-looping "hit" state that completes after one
+// 100 ms frame, plus a looping "idle" state for transition tests.
+function oneShotGraph(): SpriteGraph {
+  return {
+    animations: { hit: ["hit_0"], idle: ["idle_0", "idle_1"] },
+    frames: {
+      hit_0: { duration: 100 },
+      idle_0: { duration: 100 },
+      idle_1: { duration: 100 },
+    },
+    inputs: { done: { type: "trigger" } },
+    states: {
+      hit: { animation: "hit", loop: false },
+      idle: { animation: "idle", loop: true },
+    },
+    transitions: [{ from: "hit", to: "idle", when: [{ input: "done", op: "Trigger" }] }],
+    initial: "hit",
+  };
+}
+
+function oneShotTextureMap(): Record<string, Texture> {
+  return {
+    hit_0: fakeTexture(),
+    idle_0: fakeTexture(),
+    idle_1: fakeTexture(),
+  };
+}
+
+describe("PixiSpriteAnimator — onComplete / onStateChange delegation", () => {
+  it("onComplete fires exactly once when a non-looping clip completes", () => {
+    const s = makeSprite();
+    const view = createPixiSpriteAnimator(s.asSprite(), oneShotGraph(), oneShotTextureMap());
+    const fn = vi.fn();
+    view.onComplete(fn);
+    view.update(100); // reaches end of hit_0 → completes
+    expect(fn).toHaveBeenCalledExactlyOnceWith("hit");
+  });
+
+  it("onComplete with { once: true } auto-removes after first fire", () => {
+    const s = makeSprite();
+    const view = createPixiSpriteAnimator(s.asSprite(), oneShotGraph(), oneShotTextureMap());
+    const fn = vi.fn();
+    view.onComplete(fn, { once: true });
+    view.update(100); // completes once
+    view.reset();
+    view.update(100); // completes again after reset — handler must NOT fire again
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("onComplete unsubscribe() prevents handler from firing", () => {
+    const s = makeSprite();
+    const view = createPixiSpriteAnimator(s.asSprite(), oneShotGraph(), oneShotTextureMap());
+    const fn = vi.fn();
+    const unsub = view.onComplete(fn);
+    unsub();
+    view.update(100);
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("onStateChange fires with (to, from) on a transition", () => {
+    const s = makeSprite();
+    const view = createPixiSpriteAnimator(s.asSprite(), oneShotGraph(), oneShotTextureMap());
+    const fn = vi.fn();
+    view.onStateChange(fn);
+    view.fireTrigger("done");
+    view.update(0); // hit → idle
+    expect(fn).toHaveBeenCalledWith("idle", "hit");
+  });
+
+  it("onStateChange unsubscribe() stops further notifications", () => {
+    const s = makeSprite();
+    const view = createPixiSpriteAnimator(s.asSprite(), oneShotGraph(), oneShotTextureMap());
+    const fn = vi.fn();
+    const unsub = view.onStateChange(fn);
+    unsub();
+    view.fireTrigger("done");
+    view.update(0);
+    expect(fn).not.toHaveBeenCalled();
   });
 });
