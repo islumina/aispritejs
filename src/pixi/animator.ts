@@ -9,7 +9,14 @@
 // peerDependency; the core (`aispritejs`) never imports this module.
 
 import type { Sprite, Spritesheet, Texture } from "pixi.js";
-import { type SpriteGraph, createSpriteAnimator } from "../sprite/index.js";
+import {
+  type CompleteHandler,
+  type ListenerOptions,
+  type SpriteGraph,
+  type StateChangeHandler,
+  type Unsubscribe,
+  createSpriteAnimator,
+} from "../sprite/index.js";
 
 /**
  * Thrown by {@link createPixiSpriteAnimator} when the supplied textures are
@@ -69,6 +76,10 @@ export interface PixiSpriteAnimator {
   readonly activeFrameKey: string;
   /** `true` once disposed. */
   readonly disposed: boolean;
+  /** Subscribe to non-looping clip completions. Returns an unsubscribe. */
+  onComplete(handler: CompleteHandler, options?: ListenerOptions): Unsubscribe;
+  /** Subscribe to state changes. Returns an unsubscribe. */
+  onStateChange(handler: StateChangeHandler, options?: ListenerOptions): Unsubscribe;
 }
 
 function toTextureMap(src: Spritesheet | TextureMap): TextureMap {
@@ -167,6 +178,12 @@ export function createPixiSpriteAnimator(
     },
     get disposed() {
       return core.disposed;
+    },
+    onComplete(handler, options) {
+      return core.onComplete(handler, options);
+    },
+    onStateChange(handler, options) {
+      return core.onStateChange(handler, options);
     },
   };
 }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `PixiSpriteAnimator` now exposes `onComplete` / `onStateChange`, delegating directly to the core animator.
+
 ## [0.5.5] - 2026-06-08
 
 ### Changed
