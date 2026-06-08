@@ -1,6 +1,6 @@
 {
   "name": "aispritejs",
-  "version": "0.1.3",
+  "version": "0.5.5",
   "description": "Input-driven, renderer-agnostic 2D sprite animation runtime — a tiny, Rive-like visual state machine driven by Number / Boolean / Trigger inputs. JSON transition graph, deterministic update(dt), zero runtime dependencies. Browser / Node / Bun / Deno / WebView / Worker friendly.",
   "keywords": [
     "sprite",
@@ -20,13 +20,13 @@
   ],
   "author": "yshengliao",
   "license": "MIT",
-  "homepage": "https://github.com/yshengliao/aispritejs#readme",
+  "homepage": "https://github.com/islumina/aispritejs#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yshengliao/aispritejs.git"
+    "url": "git+https://github.com/islumina/aispritejs.git"
   },
   "bugs": {
-    "url": "https://github.com/yshengliao/aispritejs/issues"
+    "url": "https://github.com/islumina/aispritejs/issues"
   },
   "type": "module",
   "sideEffects": false,

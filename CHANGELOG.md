@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-06-08
+
+### Changed
+
+- Project home migrated to the [`islumina`](https://github.com/islumina) GitHub org; published from there via npm trusted publisher (OIDC + SLSA provenance). Version realigned from the `0.1.x` line to the shared ai\*js family version `0.5.5` — no API changes; the runtime is unchanged from `0.1.3`.
+
 ## [0.1.3] - 2026-06-05
 
 ### Added
@@ -140,7 +146,8 @@ parser, and JSON Schema (roadmap modules 1–4).
   / lines (above the family floor of 95 / 90 / 100 / 100). Core gzip ≈ 3.5 KB.
 - OIDC + SLSA provenance publish on tag-push.
 
-[Unreleased]: https://github.com/yshengliao/aispritejs/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/islumina/aispritejs/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/islumina/aispritejs/releases/tag/v0.5.5
 [0.1.3]: https://github.com/yshengliao/aispritejs/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/yshengliao/aispritejs/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/yshengliao/aispritejs/compare/v0.1.0...v0.1.1
