@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/yshengliao/aispritejs/schemas/aispritejs-graph.schema.json",
+  "$id": "https://github.com/islumina/aispritejs/schemas/aispritejs-graph.schema.json",
   "title": "aispritejs input-driven sprite graph",
   "description": "The aispritejs control graph augmenting a PixiJS-v8-native atlas. The universal `animations` / `frames` blocks plus the input-driven `inputs` / `states` / `transitions`. A foreign event-driven `states` block (the FSM `{ initial, definitions }` shape) is NOT described here and is ignored by the parser. The parser mirrors these constraints in code (fail-fast); this file is the canonical spec for editors and external validation.",
   "type": "object",

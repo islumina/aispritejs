@@ -1,7 +1,7 @@
 # aispritejs
 
 [![npm version](https://img.shields.io/npm/v/aispritejs.svg)](https://www.npmjs.com/package/aispritejs)
-[![CI](https://github.com/yshengliao/aispritejs/actions/workflows/ci.yml/badge.svg)](https://github.com/yshengliao/aispritejs/actions/workflows/ci.yml)
+[![CI](https://github.com/islumina/aispritejs/actions/workflows/ci.yml/badge.svg)](https://github.com/islumina/aispritejs/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 [![AI Generated](https://img.shields.io/badge/AI_Generated-Claude_Code_Opus_4.8-blueviolet.svg)](https://www.anthropic.com/claude-code)
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README.md)
