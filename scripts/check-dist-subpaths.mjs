@@ -38,7 +38,7 @@ const minimalAtlas = {
 // ---------------------------------------------------------------------------
 async function smokeESM() {
   // Root subpath — public API only (compileGraph is internal)
-  const { createSpriteAnimator } = await import(resolve(root, "dist/index.js"));
+  const { createSpriteAnimator, InvalidGraphError } = await import(resolve(root, "dist/index.js"));
 
   // /atlas subpath — parseAtlas output feeds root createSpriteAnimator
   const { parseAtlas, loadAtlas } = await import(resolve(root, "dist/atlas/index.js"));
@@ -46,6 +46,30 @@ async function smokeESM() {
   const graph = parseAtlas(minimalAtlas);
   if (!graph.animations || !graph.inputs || !graph.states || !graph.transitions) {
     throw new Error("ESM: parseAtlas did not return a valid SpriteGraph");
+  }
+
+  // Cross-subpath CLASS IDENTITY: /atlas's loadAtlas bundles the compile core,
+  // so the InvalidGraphError it throws must be the SAME class object the root
+  // entry exports — otherwise `err instanceof InvalidGraphError` (root import)
+  // is false across the subpath boundary. Requires tsup `splitting: true`
+  // (shared chunks); with `splitting: false` each entry inlines its own copy.
+  let identityErr;
+  try {
+    loadAtlas({
+      animations: { idle: ["idle_0"] },
+      inputs: { speed: { type: "number", default: "5" } },
+      states: { idle: { animation: "idle", loop: true } },
+      transitions: [],
+      initial: "idle",
+    });
+    throw new Error("ESM: expected loadAtlas to reject a mistyped input default");
+  } catch (err) {
+    identityErr = err;
+  }
+  if (!(identityErr instanceof InvalidGraphError)) {
+    throw new Error(
+      `ESM: InvalidGraphError thrown via /atlas is not the root class (got ${identityErr?.constructor?.name}) — cross-subpath identity broken (tsup splitting)`,
+    );
   }
 
   // Full pipeline: loadAtlas → animator → run a transition
@@ -93,12 +117,32 @@ async function smokeESM() {
 // CJS smoke
 // ---------------------------------------------------------------------------
 function smokeCJS() {
-  const { createSpriteAnimator } = require(resolve(root, "dist/index.cjs"));
+  const { createSpriteAnimator, InvalidGraphError } = require(resolve(root, "dist/index.cjs"));
   const { parseAtlas, loadAtlas } = require(resolve(root, "dist/atlas/index.cjs"));
 
   const graph = parseAtlas(minimalAtlas);
   if (!graph.animations || !graph.inputs) {
     throw new Error("CJS: parseAtlas did not return a valid SpriteGraph");
+  }
+
+  // Cross-subpath CLASS IDENTITY — same contract as the ESM block above.
+  let identityErr;
+  try {
+    loadAtlas({
+      animations: { idle: ["idle_0"] },
+      inputs: { speed: { type: "number", default: "5" } },
+      states: { idle: { animation: "idle", loop: true } },
+      transitions: [],
+      initial: "idle",
+    });
+    throw new Error("CJS: expected loadAtlas to reject a mistyped input default");
+  } catch (err) {
+    identityErr = err;
+  }
+  if (!(identityErr instanceof InvalidGraphError)) {
+    throw new Error(
+      `CJS: InvalidGraphError thrown via /atlas is not the root class (got ${identityErr?.constructor?.name}) — cross-subpath identity broken (tsup splitting)`,
+    );
   }
 
   const anim = loadAtlas(minimalAtlas);
