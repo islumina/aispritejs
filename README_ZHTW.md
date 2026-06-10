@@ -12,7 +12,7 @@
 
 屬於 **ai\*js** 家族：零跨套件相依、核心與框架無關、AI 可讀的文件。
 
-> **狀態：0.5.6 — 已對齊 ai\*js 家族版本線。** Renderer-agnostic core 加上 `/pixi`、`/atlas`、`/schema` subpath；atlas/graph 驗證已強化。歷史見 [CHANGELOG.md](CHANGELOG.md)。
+> **狀態：0.5.7 — 已對齊 ai\*js 家族版本線。** Renderer-agnostic core 加上 `/pixi`、`/atlas`、`/schema` subpath；atlas/graph 驗證已強化。歷史見 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 為什麼用 aispritejs
 
@@ -255,7 +255,7 @@ pnpm example:platformer
 
 ## 狀態
 
-**v0.5.6 —— 已對齊 ai\*js 家族版本線。** 套件版本現已與家族共享版本（`0.5.x`）同步，詳見 [CHANGELOG.md](CHANGELOG.md)。所有四個 roadmap 模組均已上線：與渲染器無關的核心（`.`）、PixiJS v8 轉接器（`aispritejs/pixi`）、atlas parser（`aispritejs/atlas`）、JSON Schema（`aispritejs/schema`）。先前強化波次已完成：在編譯期拒絕非有限的 `speed` / `duration` / `defaultFrameDuration`、在 `update()` 執行期把非有限或非正值的 `dt` 夾到 `0`，以及惡意 atlas 格式的具名錯誤覆蓋。零執行期相依；根 import 圖不含 `pixi.js`；`pixi.js` 是選用、type-only 的 peer，僅 `/pixi` 子路徑使用。
+**已對齊 ai\*js 家族版本線。** 套件版本與家族共享版本（`0.5.x`）同步——精確版次見上方 banner 與 [CHANGELOG.md](CHANGELOG.md)。所有四個 roadmap 模組均已上線：與渲染器無關的核心（`.`）、PixiJS v8 轉接器（`aispritejs/pixi`）、atlas parser（`aispritejs/atlas`）、JSON Schema（`aispritejs/schema`）。先前強化波次已完成：在編譯期拒絕非有限的 `speed` / `duration` / `defaultFrameDuration`、在 `update()` 執行期把非有限或非正值的 `dt` 夾到 `0`，以及惡意 atlas 格式的具名錯誤覆蓋。零執行期相依；根 import 圖不含 `pixi.js`；`pixi.js` 是選用、type-only 的 peer，僅 `/pixi` 子路徑使用。
 
 ## Roadmap
 

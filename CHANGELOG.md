@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-06-10
+
+### Fixed
+
+- **`/pixi` adapter prototype-key lookup** — the missing-texture guard now uses `Object.hasOwn` instead of the `in` operator (mirroring the core's 0.5.x hasOwn fixes), so atlas frame keys like `"constructor"` / `"toString"` no longer resolve through `Object.prototype`. (Review wave 2026-06-10, SPR-S-01.)
+- A `when` array containing `null` / non-object entries is rejected by `parseAtlas` with `InvalidAtlasError` instead of crashing later in compilation with a bare `TypeError`. (SPR-S-02.)
+- An input `default` whose runtime type contradicts the declared `type` (e.g. `{ "type": "number", "default": "5" }`) is rejected with `InvalidGraphError` instead of being silently adopted into the input store. (SPR-S-03.)
+- The internal signal's `clear()` (and therefore `dispose()`) now runs each listener's cleanup, detaching abort hooks from caller-owned `AbortSignal`s — a long-lived signal no longer accumulates dead listeners. (SPR-R-01.)
+
+### Changed
+
+- **Code splitting enabled (`tsup splitting: true`)** — each subpath bundle previously inlined its own copy of the shared core, so an `InvalidGraphError` thrown via `aispritejs/atlas`'s `loadAtlas` failed `instanceof` checks against the root export. Shared chunks restore cross-subpath class identity; the new `verify:dist` smoke asserts it (ESM + CJS). `check:size` now measures each entry's transitive chunk closure (index 4,175 / pixi 4,852 / atlas 5,216 B gzip measured; ~350 B of that is this wave's validation/cleanup code).
+- Supply-chain and release hardening: CI/publish actions SHA-pinned, npm CLI pinned (`11.16.0`), `permissions: contents: read` on CI, job timeouts, `npm publish --ignore-scripts`, manual dispatch defaults to dry-run, new `verify:docs` banner gate, two-stage typecheck (tests are now type-checked), `llms-full.txt` embeds `STABILITY.md`.
+
+### Docs
+
+- README `## Status` section rewritten: the version line now tracks the ai\*js family (the previous "own independent version line" claim was stale); normalised status banners added (EN + ZHTW); the compiled state's `frameKeys` alias contract documented (don't mutate atlas animations while a machine is live).
+
 ## [0.5.6] - 2026-06-09
 
 ### Added

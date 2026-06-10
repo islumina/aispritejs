@@ -12,7 +12,7 @@
 
 Part of the **ai\*js** family: zero cross-package dependencies, framework-agnostic core, AI-readable docs.
 
-> **Status: 0.5.6 — aligned with the ai\*js family version line.** Renderer-agnostic core plus `/pixi`, `/atlas`, `/schema` subpaths; hardened atlas/graph validation. See [CHANGELOG.md](CHANGELOG.md) for history.
+> **Status: 0.5.7 — aligned with the ai\*js family version line.** Renderer-agnostic core plus `/pixi`, `/atlas`, `/schema` subpaths; hardened atlas/graph validation. See [CHANGELOG.md](CHANGELOG.md) for history.
 
 ## Why aispritejs
 
@@ -258,7 +258,7 @@ pnpm example:explosion   # 6-frame play-once FX via the /pixi adapter
 
 ## Status
 
-**v0.5.6 — aligned with the ai\*js family version line.** The package version is now synchronised with the shared family version (`0.5.x`), as recorded in [CHANGELOG.md](CHANGELOG.md). All four roadmap modules are live: the renderer-agnostic core (`.`), the PixiJS v8 adapter (`aispritejs/pixi`), the atlas parser (`aispritejs/atlas`), and the JSON Schema (`aispritejs/schema`). Prior hardening waves delivered compile-time rejection of non-finite `speed` / `duration` / `defaultFrameDuration`, runtime clamping of non-finite or non-positive `dt` to `0` in `update()`, and named-error coverage for hostile atlas shapes. Zero runtime dependencies; the root import graph contains no `pixi.js`; `pixi.js` is an optional, type-only peer used only by the `/pixi` subpath.
+**Aligned with the ai\*js family version line.** The package version is synchronised with the shared family version (`0.5.x` — the banner above and [CHANGELOG.md](CHANGELOG.md) carry the exact release). All four roadmap modules are live: the renderer-agnostic core (`.`), the PixiJS v8 adapter (`aispritejs/pixi`), the atlas parser (`aispritejs/atlas`), and the JSON Schema (`aispritejs/schema`). Prior hardening waves delivered compile-time rejection of non-finite `speed` / `duration` / `defaultFrameDuration`, runtime clamping of non-finite or non-positive `dt` to `0` in `update()`, and named-error coverage for hostile atlas shapes. Zero runtime dependencies; the root import graph contains no `pixi.js`; `pixi.js` is an optional, type-only peer used only by the `/pixi` subpath.
 
 ## Roadmap
 
