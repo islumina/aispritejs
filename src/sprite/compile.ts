@@ -149,6 +149,13 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
       loop,
       speed,
       onEnd: st.onEnd,
+      // `frameKeys` is aliased directly from `graph.animations[st.animation]`
+      // without copying. The declared `readonly` typing makes mutation a
+      // compile-time error for typed callers, but callers holding the raw JSON
+      // object can mutate it at runtime. Callers must NOT mutate the atlas
+      // `animations` arrays while a machine built from that graph is alive;
+      // doing so desyncs `frameKeys` from the precomputed `cumulative` timings
+      // and can cause `frameKeys[activeFrameIndex]` to yield `undefined`.
       frameKeys,
       cumulative,
       total: running,
