@@ -130,6 +130,51 @@ describe("emitter edge cases", () => {
     expect(B).toHaveBeenCalledTimes(2);
   });
 
+  // SPR-R-01: dispose() must detach abort hooks from caller AbortSignals so
+  // long-lived signals do not accumulate dead handlers after the machine dies.
+  it("dispose() detaches abort hooks from caller AbortSignals (SPR-R-01)", () => {
+    const a = createSpriteAnimator(platformer());
+    const ctrl = new AbortController();
+
+    // Spy on the signal's removeEventListener so we can assert it is called.
+    const removeSpy = vi.spyOn(ctrl.signal, "removeEventListener");
+
+    const fn = vi.fn();
+    a.onStateChange(fn, { signal: ctrl.signal });
+
+    // Baseline: no detach yet.
+    expect(removeSpy).not.toHaveBeenCalled();
+
+    // dispose() must flush all abort hooks.
+    a.dispose();
+
+    // The abort hook must have been detached.
+    expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
+
+    // The signal must not have residual listeners — firing it after dispose
+    // must not invoke the handler.
+    fn.mockClear();
+    ctrl.abort();
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  // SPR-R-01 (onComplete channel): same contract via the complete signal.
+  it("dispose() detaches abort hooks from onComplete AbortSignals (SPR-R-01)", () => {
+    const a = createSpriteAnimator({
+      animations: { idle: ["i0"] },
+      inputs: {},
+      states: { idle: { animation: "idle", loop: false } },
+      transitions: [],
+      initial: "idle",
+    });
+    const ctrl = new AbortController();
+    const removeSpy = vi.spyOn(ctrl.signal, "removeEventListener");
+    a.onComplete(vi.fn(), { signal: ctrl.signal });
+    expect(removeSpy).not.toHaveBeenCalled();
+    a.dispose();
+    expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+
   // B9: emitter abort-before-fire.
   // Register onStateChange and onComplete with { once, signal }, abort the controller
   // BEFORE any state change, then cause a state change — the handlers must never fire

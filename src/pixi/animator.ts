@@ -127,10 +127,13 @@ export function createPixiSpriteAnimator(
   if (typeof playable.stop === "function") playable.stop();
 
   // Fail-fast: every frame key reachable from the graph must have a texture.
+  // Use Object.hasOwn rather than `in` so that Object.prototype keys such as
+  // "constructor" / "toString" are correctly rejected (mirroring APPLY-1 in
+  // compile.ts which fixed the same class).
   const missing = new Set<string>();
   for (const frameKeys of Object.values(graph.animations)) {
     for (const key of frameKeys) {
-      if (!(key in map)) missing.add(key);
+      if (!Object.hasOwn(map, key)) missing.add(key);
     }
   }
   if (missing.size > 0) throw new MissingTextureError([...missing]);

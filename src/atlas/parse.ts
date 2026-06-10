@@ -142,6 +142,21 @@ export function parseAtlas(atlas: unknown, control?: SpriteControl): SpriteGraph
         const actualType = entry === null ? "null" : Array.isArray(entry) ? "array" : typeof entry;
         throw new InvalidAtlasError(`transitions[${i}] must be an object, got ${actualType}`);
       }
+      // Validate each `when` item is an object (sibling of F-5).
+      // A null/non-object item here would otherwise cause a bare TypeError at
+      // compile.ts when it attempts to destructure `c.input`.
+      if (Array.isArray(entry.when)) {
+        const rawWhen = entry.when as unknown[];
+        for (let j = 0; j < rawWhen.length; j++) {
+          const cond = rawWhen[j];
+          if (!isObject(cond)) {
+            const actualType = cond === null ? "null" : Array.isArray(cond) ? "array" : typeof cond;
+            throw new InvalidAtlasError(
+              `transitions[${i}].when[${j}] must be an object, got ${actualType}`,
+            );
+          }
+        }
+      }
     }
     resolved = {
       inputs: atlas.inputs as Record<string, InputDef>,

@@ -12,6 +12,8 @@
 
 屬於 **ai\*js** 家族：零跨套件相依、核心與框架無關、AI 可讀的文件。
 
+> **狀態：0.5.6 — 已對齊 ai\*js 家族版本線。** Renderer-agnostic core 加上 `/pixi`、`/atlas`、`/schema` subpath；atlas/graph 驗證已強化。歷史見 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 為什麼用 aispritejs
 
 - **輸入驅動，而非名稱驅動。** 你設定參數（`speed=4`、`isGrounded=false`、`fireTrigger("jump")`），而不是動畫名稱。視覺轉移存在於資料中，與遊戲程式解耦。
@@ -253,9 +255,7 @@ pnpm example:platformer
 
 ## 狀態
 
-**v0.1.3 —— 文件修補。** 新增「何時你『不需要』aispritejs」門檻，以及一個完整、可執行、針對 `/pixi` 轉接器的 6 格爆炸（play-once FX）快速範例；原始碼與 API 無變動。v0.1.0 一併 ship 所有 roadmap 模組 1–4：與渲染器無關的核心（`.`）、PixiJS v8 轉接器（`aispritejs/pixi`）、atlas parser（`aispritejs/atlas`）、JSON Schema（`aispritejs/schema`）；v0.1.1 加上 OIDC/SLSA 發佈 provenance，v0.1.2 強化驗證 —— 在編譯期拒絕非有限的 `speed` / `duration` / `defaultFrameDuration`，並在 `update()` 執行期把非有限或非正值（`dt <= 0`）的 `dt` 夾到 `0`。完整歷史請見 [CHANGELOG.md](CHANGELOG.md)。零執行期相依；根 import 圖不含 `pixi.js`；`pixi.js` 是選用、type-only 的 peer，僅 `/pixi` 子路徑用。
-
-`aispritejs` 是 **ai\*js** 家族中最新的套件，採用**自己獨立的版本線** —— `0.1.x` 系列反映的是這個套件自身的成熟度，而非與任何手足套件的版本號對齊。在某個遊戲裡使用率低（例如以靜態 sprite 為主的遊戲）是正常現象，並非缺陷。
+**v0.5.6 —— 已對齊 ai\*js 家族版本線。** 套件版本現已與家族共享版本（`0.5.x`）同步，詳見 [CHANGELOG.md](CHANGELOG.md)。所有四個 roadmap 模組均已上線：與渲染器無關的核心（`.`）、PixiJS v8 轉接器（`aispritejs/pixi`）、atlas parser（`aispritejs/atlas`）、JSON Schema（`aispritejs/schema`）。先前強化波次已完成：在編譯期拒絕非有限的 `speed` / `duration` / `defaultFrameDuration`、在 `update()` 執行期把非有限或非正值的 `dt` 夾到 `0`，以及惡意 atlas 格式的具名錯誤覆蓋。零執行期相依；根 import 圖不含 `pixi.js`；`pixi.js` 是選用、type-only 的 peer，僅 `/pixi` 子路徑使用。
 
 ## Roadmap
 

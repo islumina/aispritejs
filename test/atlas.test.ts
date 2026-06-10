@@ -104,7 +104,7 @@ describe("parseAtlas — real PixiJS atlas + control (ignores foreign states)", 
     const a = loadAtlas(reimuAtlas, reimuControl);
     const anims = reimuAtlas.animations;
     expect(a.activeState).toBe("idle_front");
-    expect(a.activeFrameKey).toBe(anims.idle_front[0]);
+    expect(a.activeFrameKey).toBe(anims.idle_front![0]);
 
     a.setInput("moving", true);
     a.update(0);
@@ -114,11 +114,11 @@ describe("parseAtlas — real PixiJS atlas + control (ignores foreign states)", 
     a.fireTrigger("attack");
     a.update(0);
     expect(a.activeState).toBe("attack_front");
-    expect(a.activeFrameKey).toBe(anims.attack_front[0]);
+    expect(a.activeFrameKey).toBe(anims.attack_front![0]);
 
     // attack_front is non-looping; real frames are 100 ms each → advance past
     // its total to complete and auto-return to idle_front via onEnd.
-    a.update(anims.attack_front.length * 100 + 1);
+    a.update(anims.attack_front!.length * 100 + 1);
     expect(a.activeState).toBe("idle_front");
   });
 
@@ -191,6 +191,42 @@ describe("parseAtlas — structural validation", () => {
         inputs: {},
         states: { idle: { animation: "idle" } },
         transitions: [null],
+      }),
+    ).toThrow(InvalidAtlasError);
+  });
+
+  // SPR-S-02: a null (or non-object) item inside a `when` array causes a bare
+  // TypeError at compile.ts:159-160. The parser must validate each `when` item
+  // is an object and throw InvalidAtlasError (not TypeError) before the core.
+  it("rejects a transition whose `when` array contains a null entry (SPR-S-02)", () => {
+    // The fix should throw InvalidAtlasError, not a bare TypeError.
+    expect(() =>
+      parseAtlas({
+        animations: { idle: ["i0"] },
+        inputs: { speed: { type: "number", default: 0 } },
+        states: { idle: { animation: "idle", loop: true } },
+        transitions: [
+          {
+            from: "idle",
+            to: "idle",
+            when: [null], // hostile: null condition item
+          },
+        ],
+      }),
+    ).toThrow(InvalidAtlasError);
+    // Non-object (e.g. string) item in `when` is also rejected.
+    expect(() =>
+      parseAtlas({
+        animations: { idle: ["i0"] },
+        inputs: { speed: { type: "number", default: 0 } },
+        states: { idle: { animation: "idle", loop: true } },
+        transitions: [
+          {
+            from: "idle",
+            to: "idle",
+            when: ["bad"], // hostile: string condition item
+          },
+        ],
       }),
     ).toThrow(InvalidAtlasError);
   });
