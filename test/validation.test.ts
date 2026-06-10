@@ -280,4 +280,43 @@ describe("graph validation", () => {
       ],
     });
   });
+
+  // SPR-S-03: a `default` whose typeof mismatches the declared input kind must
+  // throw InvalidGraphError, not be silently adopted into the input store where
+  // it would cause wrong frame selection without any error.
+  it('rejects a number input with a string default ("5" is not a number) (SPR-S-03)', () => {
+    expect(() =>
+      createSpriteAnimator({
+        ...base(),
+        inputs: { speed: { type: "number", default: "5" as unknown as number } },
+      }),
+    ).toThrow(InvalidGraphError);
+  });
+
+  it("rejects a boolean input with a number default (1 is not a boolean) (SPR-S-03)", () => {
+    expect(() =>
+      createSpriteAnimator({
+        ...base(),
+        inputs: { grounded: { type: "boolean", default: 1 as unknown as boolean } },
+      }),
+    ).toThrow(InvalidGraphError);
+  });
+
+  it("accepts a number input with a valid numeric default (not affected by SPR-S-03 fix)", () => {
+    expect(() =>
+      createSpriteAnimator({
+        ...base(),
+        inputs: { speed: { type: "number", default: 5 } },
+      }),
+    ).not.toThrow();
+  });
+
+  it("accepts a boolean input with a valid boolean default (not affected by SPR-S-03 fix)", () => {
+    expect(() =>
+      createSpriteAnimator({
+        ...base(),
+        inputs: { grounded: { type: "boolean", default: true } },
+      }),
+    ).not.toThrow();
+  });
 });

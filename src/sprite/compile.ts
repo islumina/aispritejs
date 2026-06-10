@@ -56,12 +56,29 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
   }
 
   // Inputs: types are enforced by TS, but a graph loaded from untyped JSON can
-  // still carry a bad `type`. Validate so a bad input fails here, not silently.
+  // still carry a bad `type` or a `default` whose typeof mismatches the kind.
+  // Validate so a bad input fails here, not silently in the store.
   for (const [name, def] of Object.entries(graph.inputs)) {
     if (def.type !== "number" && def.type !== "boolean" && def.type !== "trigger") {
       throw new InvalidGraphError(
         `input "${name}" has unknown type "${(def as { type: string }).type}"`,
       );
+    }
+    // Validate `default` typeof matches the declared kind (schema constraint in
+    // code). A wrong-typed default would be adopted unvalidated and silently
+    // misevaluate conditions (e.g. "5" === 5 is false for Equals).
+    const rawDef = def as { type: string; default?: unknown };
+    if (rawDef.default !== undefined) {
+      if (def.type === "number" && typeof rawDef.default !== "number") {
+        throw new InvalidGraphError(
+          `input "${name}" default must be a number (declared type "number"), got ${typeof rawDef.default}`,
+        );
+      }
+      if (def.type === "boolean" && typeof rawDef.default !== "boolean") {
+        throw new InvalidGraphError(
+          `input "${name}" default must be a boolean (declared type "boolean"), got ${typeof rawDef.default}`,
+        );
+      }
     }
   }
 
