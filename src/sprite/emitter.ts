@@ -20,6 +20,9 @@ export interface Signal<P> {
 
 export function createSignal<P>(): Signal<P> {
   const listeners = new Set<(payload: P) => void>();
+  // Parallel registry of cleanup functions so clear() can detach abort hooks
+  // as well as clearing the listener set (fixes SPR-R-01).
+  const cleanups = new Map<(payload: P) => void, Unsubscribe>();
 
   function on(handler: (payload: P) => void, options?: ListenerOptions): Unsubscribe {
     // An already-aborted signal means the listener is dead on arrival.
@@ -32,6 +35,7 @@ export function createSignal<P>(): Signal<P> {
     // attached after it fires.
     const cleanup: Unsubscribe = () => {
       listeners.delete(wrapped);
+      cleanups.delete(wrapped);
       if (detachAbort) {
         detachAbort();
         detachAbort = undefined;
@@ -46,6 +50,7 @@ export function createSignal<P>(): Signal<P> {
       };
     }
     listeners.add(wrapped);
+    cleanups.set(wrapped, cleanup);
 
     const sig = options?.signal;
     if (sig) {
@@ -65,7 +70,12 @@ export function createSignal<P>(): Signal<P> {
   }
 
   function clear(): void {
+    // Run each cleanup so abort hooks are detached from caller AbortSignals
+    // (SPR-R-01). Snapshot the values first because cleanup() mutates the map.
+    for (const cleanup of [...cleanups.values()]) cleanup();
+    // Defensive: ensure both collections are empty even if a cleanup threw.
     listeners.clear();
+    cleanups.clear();
   }
 
   return { on, emit, clear };
