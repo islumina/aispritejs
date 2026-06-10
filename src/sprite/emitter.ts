@@ -73,7 +73,10 @@ export function createSignal<P>(): Signal<P> {
     // Run each cleanup so abort hooks are detached from caller AbortSignals
     // (SPR-R-01). Snapshot the values first because cleanup() mutates the map.
     for (const cleanup of [...cleanups.values()]) cleanup();
-    // Defensive: ensure both collections are empty even if a cleanup threw.
+    // Each cleanup already removed its own entries; these clears make the
+    // empty post-condition explicit. (A throwing cleanup would propagate and
+    // skip them — listener callbacks and detach hooks are plain functions in
+    // every documented path, so that trade-off is accepted over a try/finally.)
     listeners.clear();
     cleanups.clear();
   }
