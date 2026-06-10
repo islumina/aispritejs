@@ -12,6 +12,8 @@
 
 Part of the **ai\*js** family: zero cross-package dependencies, framework-agnostic core, AI-readable docs.
 
+> **Status: 0.5.6 — aligned with the ai\*js family version line.** Renderer-agnostic core plus `/pixi`, `/atlas`, `/schema` subpaths; hardened atlas/graph validation. See [CHANGELOG.md](CHANGELOG.md) for history.
+
 ## Why aispritejs
 
 - **Input-driven, not name-driven.** You set parameters (`speed=4`, `isGrounded=false`, `fireTrigger("jump")`), not animation names. Visual transitions live in data, decoupled from game code.
@@ -256,9 +258,7 @@ pnpm example:explosion   # 6-frame play-once FX via the /pixi adapter
 
 ## Status
 
-**v0.1.3 — docs patch.** Adds a "When you DON'T need aispritejs" threshold and a complete, runnable 6-frame explosion (play-once FX) quickstart for the `/pixi` adapter; no source or API changes. v0.1.0 shipped all roadmap modules (1–4): the renderer-agnostic core (`.`), the PixiJS v8 adapter (`aispritejs/pixi`), the atlas parser (`aispritejs/atlas`), and the JSON Schema (`aispritejs/schema`); v0.1.1 added OIDC/SLSA publish provenance and v0.1.2 hardened validation — compile-time rejection of non-finite `speed` / `duration` / `defaultFrameDuration`, plus a runtime clamp of non-finite or non-positive `dt` (`dt <= 0`) to `0` in `update()`. See [CHANGELOG.md](CHANGELOG.md) for the full history. Zero runtime dependencies; the root import graph contains no `pixi.js`; `pixi.js` is an optional, type-only peer used only by the `/pixi` subpath.
-
-`aispritejs` is the newest package in the **ai\*js** family and follows its **own independent version line** — the `0.1.x` series reflects this package's own maturation, not alignment with any sibling's version number. Low usage in a given game (e.g. one built on static sprites) is expected, not a defect.
+**v0.5.6 — aligned with the ai\*js family version line.** The package version is now synchronised with the shared family version (`0.5.x`), as recorded in [CHANGELOG.md](CHANGELOG.md). All four roadmap modules are live: the renderer-agnostic core (`.`), the PixiJS v8 adapter (`aispritejs/pixi`), the atlas parser (`aispritejs/atlas`), and the JSON Schema (`aispritejs/schema`). Prior hardening waves delivered compile-time rejection of non-finite `speed` / `duration` / `defaultFrameDuration`, runtime clamping of non-finite or non-positive `dt` to `0` in `update()`, and named-error coverage for hostile atlas shapes. Zero runtime dependencies; the root import graph contains no `pixi.js`; `pixi.js` is an optional, type-only peer used only by the `/pixi` subpath.
 
 ## Roadmap
 

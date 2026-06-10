@@ -104,7 +104,7 @@ describe("parseAtlas — real PixiJS atlas + control (ignores foreign states)", 
     const a = loadAtlas(reimuAtlas, reimuControl);
     const anims = reimuAtlas.animations;
     expect(a.activeState).toBe("idle_front");
-    expect(a.activeFrameKey).toBe(anims.idle_front[0]);
+    expect(a.activeFrameKey).toBe(anims.idle_front![0]);
 
     a.setInput("moving", true);
     a.update(0);
@@ -114,11 +114,11 @@ describe("parseAtlas — real PixiJS atlas + control (ignores foreign states)", 
     a.fireTrigger("attack");
     a.update(0);
     expect(a.activeState).toBe("attack_front");
-    expect(a.activeFrameKey).toBe(anims.attack_front[0]);
+    expect(a.activeFrameKey).toBe(anims.attack_front![0]);
 
     // attack_front is non-looping; real frames are 100 ms each → advance past
     // its total to complete and auto-return to idle_front via onEnd.
-    a.update(anims.attack_front.length * 100 + 1);
+    a.update(anims.attack_front!.length * 100 + 1);
     expect(a.activeState).toBe("idle_front");
   });
 
