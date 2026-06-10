@@ -202,6 +202,41 @@ describe("createPixiSpriteAnimator", () => {
       );
     }
   });
+
+  // SPR-S-01 regression: `in` traverses the prototype chain, so keys like
+  // "constructor" / "toString" would pass the guard even when no real texture
+  // exists. Object.hasOwn must be used to reject them.
+  it("throws MissingTextureError for prototype-chain keys (SPR-S-01)", () => {
+    const s = makeSprite();
+    // A graph whose animation references Object.prototype keys only.
+    const protoKeyGraph: SpriteGraph = {
+      animations: { idle: ["constructor", "toString"] },
+      inputs: {},
+      states: { idle: { animation: "idle", loop: true } },
+      transitions: [],
+      initial: "idle",
+    };
+    // An empty map that inherits from Object.prototype — "constructor" and
+    // "toString" exist via the prototype chain but not as own properties.
+    const emptyMap: Record<string, Texture> = Object.create(null) as Record<string, Texture>;
+    // Plain object (has prototype), also no own keys for "constructor".
+    const plainMap: Record<string, Texture> = {};
+    expect(() => createPixiSpriteAnimator(s.asSprite(), protoKeyGraph, emptyMap)).toThrow(
+      MissingTextureError,
+    );
+    expect(() => createPixiSpriteAnimator(s.asSprite(), protoKeyGraph, plainMap)).toThrow(
+      MissingTextureError,
+    );
+    try {
+      createPixiSpriteAnimator(s.asSprite(), protoKeyGraph, plainMap);
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(MissingTextureError);
+      expect((err as MissingTextureError).keys).toEqual(
+        expect.arrayContaining(["constructor", "toString"]),
+      );
+    }
+  });
 });
 
 // A minimal graph with a non-looping "hit" state that completes after one
