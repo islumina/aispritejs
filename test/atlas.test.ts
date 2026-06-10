@@ -195,6 +195,42 @@ describe("parseAtlas — structural validation", () => {
     ).toThrow(InvalidAtlasError);
   });
 
+  // SPR-S-02: a null (or non-object) item inside a `when` array causes a bare
+  // TypeError at compile.ts:159-160. The parser must validate each `when` item
+  // is an object and throw InvalidAtlasError (not TypeError) before the core.
+  it("rejects a transition whose `when` array contains a null entry (SPR-S-02)", () => {
+    // The fix should throw InvalidAtlasError, not a bare TypeError.
+    expect(() =>
+      parseAtlas({
+        animations: { idle: ["i0"] },
+        inputs: { speed: { type: "number", default: 0 } },
+        states: { idle: { animation: "idle", loop: true } },
+        transitions: [
+          {
+            from: "idle",
+            to: "idle",
+            when: [null], // hostile: null condition item
+          },
+        ],
+      }),
+    ).toThrow(InvalidAtlasError);
+    // Non-object (e.g. string) item in `when` is also rejected.
+    expect(() =>
+      parseAtlas({
+        animations: { idle: ["i0"] },
+        inputs: { speed: { type: "number", default: 0 } },
+        states: { idle: { animation: "idle", loop: true } },
+        transitions: [
+          {
+            from: "idle",
+            to: "idle",
+            when: ["bad"], // hostile: string condition item
+          },
+        ],
+      }),
+    ).toThrow(InvalidAtlasError);
+  });
+
   it("rejects an inputs entry that is not an object", () => {
     // inputs:{speed:null} must throw InvalidAtlasError with accurate type name.
     expect(() =>
