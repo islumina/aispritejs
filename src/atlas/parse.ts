@@ -150,8 +150,7 @@ export function parseAtlas(atlas: unknown, control?: SpriteControl): SpriteGraph
         for (let j = 0; j < rawWhen.length; j++) {
           const cond = rawWhen[j];
           if (!isObject(cond)) {
-            const actualType =
-              cond === null ? "null" : Array.isArray(cond) ? "array" : typeof cond;
+            const actualType = cond === null ? "null" : Array.isArray(cond) ? "array" : typeof cond;
             throw new InvalidAtlasError(
               `transitions[${i}].when[${j}] must be an object, got ${actualType}`,
             );

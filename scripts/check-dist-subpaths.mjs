@@ -37,23 +37,15 @@ const minimalAtlas = {
 // ESM smoke
 // ---------------------------------------------------------------------------
 async function smokeESM() {
-  // Root subpath
-  const { createSpriteAnimator, compileGraph } = await import(
-    resolve(root, "dist/index.js")
-  );
+  // Root subpath — public API only (compileGraph is internal)
+  const { createSpriteAnimator } = await import(resolve(root, "dist/index.js"));
 
-  // /atlas subpath — parseAtlas output feeds root compileGraph
+  // /atlas subpath — parseAtlas output feeds root createSpriteAnimator
   const { parseAtlas, loadAtlas } = await import(resolve(root, "dist/atlas/index.js"));
 
   const graph = parseAtlas(minimalAtlas);
   if (!graph.animations || !graph.inputs || !graph.states || !graph.transitions) {
     throw new Error("ESM: parseAtlas did not return a valid SpriteGraph");
-  }
-
-  // compileGraph from root receives the /atlas output — cross-subpath identity
-  const compiled = compileGraph(graph);
-  if (!compiled.states || !compiled.candidatesByState) {
-    throw new Error("ESM: compileGraph output missing states/candidatesByState");
   }
 
   // Full pipeline: loadAtlas → animator → run a transition
@@ -64,7 +56,7 @@ async function smokeESM() {
     throw new Error(`ESM: expected state "walk", got "${anim.activeState}"`);
   }
 
-  // createSpriteAnimator from root also works with the same graph shape
+  // Cross-subpath identity: createSpriteAnimator (root) receives /atlas parseAtlas output
   const anim2 = createSpriteAnimator(graph);
   anim2.setInput("speed", 3);
   anim2.update(0);
@@ -101,17 +93,12 @@ async function smokeESM() {
 // CJS smoke
 // ---------------------------------------------------------------------------
 function smokeCJS() {
-  const { createSpriteAnimator, compileGraph } = require(resolve(root, "dist/index.cjs"));
+  const { createSpriteAnimator } = require(resolve(root, "dist/index.cjs"));
   const { parseAtlas, loadAtlas } = require(resolve(root, "dist/atlas/index.cjs"));
 
   const graph = parseAtlas(minimalAtlas);
   if (!graph.animations || !graph.inputs) {
     throw new Error("CJS: parseAtlas did not return a valid SpriteGraph");
-  }
-
-  const compiled = compileGraph(graph);
-  if (!compiled.states) {
-    throw new Error("CJS: compileGraph output missing states");
   }
 
   const anim = loadAtlas(minimalAtlas);

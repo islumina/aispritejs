@@ -10,21 +10,19 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const budgets = {
-  // v0.1.0 renderer-agnostic core: the input-driven visual state machine
-  // (inputs store, graph compiler/validator, transition resolver, frame-timing
-  // engine, typed emitter). Zero runtime dependencies, unminified (gzip does
-  // the work, matching aifsmjs). Measured at 3,481 B in v0.1.0; budget set to
-  // 3,800 B for a ~320 B safety margin. Tighten in a patch if it shrinks.
-  "dist/index.js": 3_800,
-  // v0.2.0 PixiJS adapter (aispritejs/pixi). Bundles the core (splitting:false)
-  // plus the thin texture/anchor-swapping adapter; pixi.js is type-only and
-  // external, so nothing pixi reaches the bundle. Measured at 3,881 B; budget
-  // 4,200 B for a ~320 B safety margin.
-  "dist/pixi/index.js": 4_200,
-  // v0.3.0 atlas parser (aispritejs/atlas). Bundles the core (splitting:false)
-  // plus parseAtlas / loadAtlas. Pure, zero-dependency, no pixi. Measured at
-  // 4,076 B; budget 4,400 B for a ~320 B safety margin.
-  "dist/atlas/index.js": 4_400,
+  // wave 2026-06-10 P1 fixes added ~190 B net to the core (SPR-S-03 input
+  // default typeof check + SPR-R-01 cleanups Map in emitter). Measured at
+  // 3,994 B post-fix; budget raised to 4,100 B for a ~100 B safety margin.
+  // (Prior: 3,800 B measured at ~3,481 B in v0.1.0.)
+  "dist/index.js": 4_100,
+  // wave 2026-06-10: SPR-S-01 Object.hasOwn in missing-texture scan adds ~30 B
+  // on top of the core delta. Measured at 4,440 B post-fix; budget 4,600 B.
+  // (Prior: 4,200 B measured at ~3,881 B in v0.2.0.)
+  "dist/pixi/index.js": 4_600,
+  // wave 2026-06-10: SPR-S-02 when-item validation loop adds ~220 B on top of
+  // the core delta. Measured at 4,813 B post-fix; budget 5,000 B.
+  // (Prior: 4,400 B measured at ~4,076 B in v0.3.0.)
+  "dist/atlas/index.js": 5_000,
 };
 
 const failures = [];
