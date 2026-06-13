@@ -13,273 +13,101 @@ The short index lives at `llms.txt` (see https://llmstxt.org/).
 
 # aispritejs
 
-[![npm version](https://img.shields.io/npm/v/aispritejs.svg)](https://www.npmjs.com/package/aispritejs)
-[![CI](https://github.com/islumina/aispritejs/actions/workflows/ci.yml/badge.svg)](https://github.com/islumina/aispritejs/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
-[![AI Generated](https://img.shields.io/badge/AI_Generated-Claude_Code_Opus_4.8-blueviolet.svg)](https://www.anthropic.com/claude-code)
-[![繁體中文](https://img.shields.io/badge/lang-繁體中文-red.svg)](README_ZHTW.md)
+Input-driven, renderer-agnostic 2D sprite animation runtime. A JSON graph maps Number/Boolean/Trigger inputs to visual states and frames; adapters bind the chosen frame to a renderer.
 
-> Input-driven, renderer-agnostic 2D sprite animation runtime — a tiny, Rive-like *visual* state machine driven by `Number` / `Boolean` / `Trigger` inputs.
+> **Status: 0.5.7 - stable family-aligned surface.** Core, PixiJS adapter, atlas parser, and JSON Schema subpath are shipped.
 
-`aispritejs` decides **which animation frame is on screen** from a small set of runtime **inputs** (e.g. `speed`, `isGrounded`, `jump`), using a JSON-defined transition graph. Your code sets inputs; `aispritejs` picks the visual state and ticks the active frame. The core is pure TypeScript with **zero dependencies** and **no renderer imports** — bind it to PixiJS v8 (or anything) through a thin adapter.
+## Install
 
-Part of the **ai\*js** family: zero cross-package dependencies, framework-agnostic core, AI-readable docs.
-
-> **Status: 0.5.7 — aligned with the ai\*js family version line.** Renderer-agnostic core plus `/pixi`, `/atlas`, `/schema` subpaths; hardened atlas/graph validation. See [CHANGELOG.md](CHANGELOG.md) for history.
-
-## Why aispritejs
-
-- **Input-driven, not name-driven.** You set parameters (`speed=4`, `isGrounded=false`, `fireTrigger("jump")`), not animation names. Visual transitions live in data, decoupled from game code.
-- **Renderer-agnostic core.** The state machine computes the active frame from delta-time + inputs; it never imports PixiJS or touches the DOM. Adapters map the result to textures.
-- **Visual ≠ logic.** This is strictly a *visual* animator. It is **not** a game-logic FSM and does **not** depend on `aifsmjs`. Drive it from any logic layer (plain code, an FSM, an ECS) — they compose by convention, never by dependency.
-- **Tiny + fast.** O(1) input lookups, O(N) checks over transitions leaving the current state, no per-frame allocation.
-
-## When you DON'T need aispritejs
-
-`aispritejs` earns its keep when frame selection is **driven by runtime inputs** across **several visual states**. Below that threshold, reach for PixiJS directly — there is nothing to gain from a state machine:
-
-- **A single sprite / one static image** → a plain PixiJS [`Sprite`](https://pixijs.download/release/docs/scene.Sprite.html). No animation, no graph.
-- **One looping clip with no branching** (a coin spin, a torch flicker) → a PixiJS [`AnimatedSprite`](https://pixijs.download/release/docs/scene.AnimatedSprite.html) (`AnimatedSprite.fromFrames(...)`, `.play()`). One clip that always plays the same way needs no inputs.
-- **No texture atlas** (you aren't packing frames into a spritesheet) → load images directly; `aispritejs` reads its frames from a PixiJS-v8 atlas (`animations` / `frames`).
-- **No multi-state switching** — if your code already knows exactly which clip to play and just calls `.play()` / `.gotoAndStop()`, you don't need a transition graph.
-
-Reach for `aispritejs` when you have **input-driven, multi-state visual switching backed by a texture atlas** — e.g. `idle ⇄ walk → jump`, or a one-shot hit FX fired by a trigger — where which frame is on screen is a function of `speed` / `isGrounded` / `attack`, not a hard-coded `play()` call.
-
-## Mental model
-
+```bash
+pnpm add aispritejs
+pnpm add pixi.js # only when using aispritejs/pixi
 ```
-inputs ─▶ [transition graph] ─▶ active state ─▶ (Δt) ─▶ active frame ─▶ adapter ─▶ texture
-```
-
-- **Inputs** — `Number` (continuous, e.g. `speed`), `Boolean` (toggle, e.g. `isGrounded`), `Trigger` (one-shot; auto-resets after a transition consumes it, e.g. `jump` / `attack`).
-- **States** — an animation key (into the atlas `animations`) + loop / on-end behaviour + optional speed multiplier.
-- **Transitions** — from a state (or **Any State**) to another when conditions over inputs hold (`Equals` / `NotEquals` / `GreaterThan` / `LessThan` / `Trigger`). The highest-priority satisfied transition wins.
-- **`update(dt)`** — advances the playback timer; evaluates transitions (switching state, firing `onStateChange`, consuming triggers); computes the current frame from the animation's per-frame durations + loop; fires `onComplete` when a non-looping clip ends.
-
-## Quick start — core (zero-dep)
 
 ```ts
 import { createSpriteAnimator } from "aispritejs";
-
-const anim = createSpriteAnimator(graph); // graph = { inputs, states, transitions, animations }
-
-anim.setInput("speed", 4);
-anim.setInput("isGrounded", true);
-anim.fireTrigger("jump");
-
-anim.onStateChange((to, from) => {/* ... */});
-anim.onComplete((state) => {/* ... */});
-
-// in your render loop:
-anim.update(deltaMs);
-const frameKey = anim.activeFrameKey; // hand to your renderer
 ```
 
-## Quick start — PixiJS v8 adapter
-
-The `aispritejs/pixi` subpath binds the core to a `PIXI.Sprite`. `pixi.js` is an **optional** `peerDependency`, imported **type-only** — the built adapter contains no runtime `pixi.js` require, and the core never imports it.
+## Quick Start - Core
 
 ```ts
-import { createPixiSpriteAnimator } from "aispritejs/pixi"; // pixi.js is an OPTIONAL peer
-
-// `textures` is a PIXI.Spritesheet (or a frame-key → Texture map) covering
-// every frame the graph references — missing keys throw MissingTextureError.
-const view = createPixiSpriteAnimator(sprite, graph, spritesheet);
-
-// each frame:
-view.update(deltaMs); // swaps the bound sprite's texture to the active frame,
-                      // applying that frame's atlas anchor (texture.defaultAnchor)
-
-view.setInput("speed", 4);
-view.fireTrigger("jump");
-```
-
-It swaps the texture only when the active frame changes, and honours per-frame `duration` (via the core) and non-centre / foot pivots (via `texture.defaultAnchor`; pass `{ applyAnchor: false }` to manage the anchor yourself). `view.sprite` is the bound sprite; `dispose()` tears down the core without destroying the sprite.
-
-Pass a plain `Sprite` — the adapter owns frame selection. (An `AnimatedSprite` is accepted since it extends `Sprite`, but its own playback is stopped on bind so it cannot fight the adapter for the texture.)
-
-### Complete example — a 6-frame explosion (play-once FX)
-
-The most common entry: a one-shot hit/impact FX (net-splash, muzzle flash) from a **6-frame explosion sprite sheet**, driven through the `/pixi` adapter. A `Trigger` fires a **non-looping** clip that plays once and auto-returns to a resting frame via `onEnd`. The full runnable version is [`examples/02-explosion-pixi/index.ts`](examples/02-explosion-pixi/index.ts) (`pnpm example:explosion`).
-
-```ts
-import { Assets, Sprite } from "pixi.js";
-import { createPixiSpriteAnimator } from "aispritejs/pixi";
-
-// A 6-frame explosion sprite sheet (PixiJS-v8 atlas): the `animations` block
-// names the clip → its frame keys; `frames` carries per-frame durations.
-const graph = {
-  animations: {
-    explosion: ["explosion_0", "explosion_1", "explosion_2", "explosion_3", "explosion_4", "explosion_5"],
-    idle: ["explosion_0"], // a 1-frame resting clip to hold between bursts
+const anim = createSpriteAnimator({
+  inputs: {
+    speed: { type: "number", default: 0 },
+    jump: { type: "trigger" },
   },
-  frames: {
-    explosion_0: { duration: 40 }, explosion_1: { duration: 40 }, explosion_2: { duration: 40 },
-    explosion_3: { duration: 40 }, explosion_4: { duration: 40 }, explosion_5: { duration: 40 },
-  },
-  inputs: { detonate: { type: "trigger" } },
+  initial: "idle",
   states: {
-    idle: { animation: "idle", loop: true },
-    boom: { animation: "explosion", loop: false, onEnd: "idle" }, // play once → back to idle
+    idle: { animation: "idle" },
+    run: { animation: "run", speed: 1 },
+    jump: { animation: "jump", loop: false, onEnd: "idle" },
   },
   transitions: [
-    { from: "*", to: "boom", when: [{ input: "detonate", op: "Trigger" }], priority: 10 },
+    { from: "idle", to: "run", when: [{ input: "speed", op: "GreaterThan", value: 0 }] },
+    { from: "*", to: "jump", when: [{ input: "jump", op: "Trigger" }] },
   ],
-  initial: "idle",
-} as const;
+  animations: {
+    idle: ["idle_0"],
+    run: ["run_0", "run_1"],
+    jump: ["jump_0", "jump_1"],
+  },
+});
 
-// Load the packed sheet; its `.textures` cover every frame key the graph uses.
-const sheet = await Assets.load("explosion.json"); // a PIXI.Spritesheet
-const sprite = new Sprite();
-const fx = createPixiSpriteAnimator(sprite, graph, sheet);
-
-// Fire the one-shot trigger on impact:
-fx.fireTrigger("detonate");
-
-// Drive the burst from your PixiJS render loop (e.g. `app.ticker`), advancing by
-// elapsed ms: `app.ticker.add((ticker) => fx.update(ticker.deltaMS))`.
+anim.setInput("speed", 1);
+anim.fireTrigger("jump");
+anim.update(16.7);
+console.log(anim.activeState, anim.activeFrameKey);
 ```
 
-`update(dt)` plays `explosion_0…explosion_5` once (honouring each frame's `duration`); on the tick that completes the clip it fires `onComplete` and, because `boom` declares `onEnd`, auto-transitions to `idle` in that **same** tick — so the last frame isn't held, and `activeState` reads `idle` right after. Re-`fireTrigger("detonate")` to replay. The same graph runs with no renderer — see [`examples/02-explosion-pixi/index.ts`](examples/02-explosion-pixi/index.ts), which exercises the real adapter headlessly with plain `Texture` / `Sprite` instances.
-
-## Data format (atlas)
-
-`aispritejs` reads a **PixiJS v8-native** spritesheet atlas (`meta` / `frames` / `animations`) — the same shape the family's sprite pipeline emits — augmented with an `aispritejs` **input-driven** control block:
-
-```jsonc
-{
-  "meta":   { "image": "sheet.png", "size": { "w": 1024, "h": 1024 }, "scale": "1" },
-  "frames": { /* PixiJS native: frame{x,y,w,h}, anchor, duration, trimmed, ... */ },
-  "animations": { "idle": ["idle_0", "idle_1"], "walk": ["walk_0", "..."], "jump": ["jump_0", "..."] },
-
-  "inputs": {
-    "speed":      { "type": "number",  "default": 0 },
-    "isGrounded": { "type": "boolean", "default": true },
-    "jump":       { "type": "trigger" }
-  },
-  "states": {
-    "idle": { "animation": "idle", "loop": true },
-    "walk": { "animation": "walk", "loop": true },
-    "jump": { "animation": "jump", "loop": false }
-  },
-  "transitions": [
-    { "from": "*",    "to": "jump", "when": [{ "input": "jump",  "op": "Trigger" }], "priority": 10 },
-    { "from": "idle", "to": "walk", "when": [{ "input": "speed", "op": "GreaterThan", "value": 0 }] },
-    { "from": "walk", "to": "idle", "when": [{ "input": "speed", "op": "Equals",      "value": 0 }] }
-  ]
-}
-```
-
-This **input-driven** model is deliberately distinct from an event-driven FSM. `aispritejs` ingests only the universal `frames` / `animations`; the `inputs` / `states` / `transitions` are its own. If an atlas carries a foreign event-driven `states` block from another tool, `aispritejs` ignores it.
-
-## Loading an atlas — `aispritejs/atlas`
-
-The `aispritejs/atlas` subpath turns a parsed PixiJS-v8 atlas into a graph (or a ready animator). It is pure and zero-dependency.
+## PixiJS Adapter
 
 ```ts
-import { parseAtlas, loadAtlas } from "aispritejs/atlas";
+import { createPixiSpriteAnimator } from "aispritejs/pixi";
 
-// Augmented atlas (the shape above, with inputs/states/transitions inline):
-const anim = loadAtlas(atlasJson);
-
-// Real atlas whose own `states` block is foreign (event-driven) or absent —
-// supply the input-driven control separately; the foreign block is ignored:
-const graph = parseAtlas(atlasJson, { inputs, states, transitions, initial });
+const view = createPixiSpriteAnimator(sprite, graph, spritesheet);
+view.update(deltaMs);
+view.dispose(); // disposes core animator; does not destroy the Pixi sprite
 ```
 
-- `parseAtlas(atlas, control?)` → `SpriteGraph`; `loadAtlas(atlas, control?)` → `SpriteAnimator` (parse + create in one fail-fast step).
-- A foreign event-driven `states` block (the `{ initial, definitions }` FSM shape) is **detected and ignored** — pass an `aispritejs` control block instead. Structural problems throw `InvalidAtlasError`; semantic ones surface as `InvalidGraphError` from the core.
-- The canonical structure is published as a JSON Schema at [`schemas/aispritejs-graph.schema.json`](schemas/aispritejs-graph.schema.json) (also exported as `aispritejs/schema`) for editor and CI validation; the parser mirrors it in code, so there is no runtime schema-validator dependency.
+`pixi.js` is an optional peer dependency and is imported type-only by the adapter. The root package never imports Pixi, DOM, or canvas APIs.
 
-## Decoupling (P0)
+## Atlas and Schema
 
-- **Zero cross-package imports** — `aispritejs` does not import `aifsmjs`, `aieventjs`, or any sibling. It has its own minimal typed emitter.
-- **Renderer-agnostic core** — the root entry never imports `pixi.js`. Only `aispritejs/pixi` does, and `pixi.js` is an **optional `peerDependency`**.
-- **Visual animator only** — pair it with a game-logic layer by setting inputs; it makes no assumption about how your logic is structured.
+- `parseAtlas(atlas, control?)` converts a PixiJS-v8 style atlas plus control block into a `SpriteGraph`.
+- `loadAtlas(atlas, control?)` parses and creates a `SpriteAnimator`.
+- `aispritejs/schema` exports `schemas/aispritejs-graph.schema.json` for editor/CI validation.
+- Parser validation is structural (`InvalidAtlasError`); compiler validation is semantic (`InvalidGraphError`).
 
 ## Core API
 
-The public surface is a single factory plus types and named errors. There is **no exported class constructor** — `createSpriteAnimator` returns a `SpriteAnimator`.
+- `createSpriteAnimator(graph)` returns a `SpriteAnimator`.
+- `setInput(name, value)` accepts Number/Boolean inputs.
+- `fireTrigger(name)` consumes Trigger inputs on transition.
+- `update(deltaMs)` advances time, transitions, frame index, and `onEnd`.
+- `reset()` returns to the initial state.
+- `dispose()` is idempotent; mutators throw `SpriteAnimatorDisposedError` afterward.
+- `onStateChange(handler, options?)` and `onComplete(handler, options?)` support `once` and `signal`.
 
-```ts
-const anim = createSpriteAnimator(graph); // throws InvalidGraphError on a bad graph
+## Sharp Edges
 
-anim.setInput(name, value);   // Number | Boolean; throws Unknown/InputTypeError
-anim.fireTrigger(name);       // marks a Trigger pending
-anim.update(deltaMs);         // advance; evaluate transitions; tick the frame
-anim.reset();                 // back to initial + default inputs (keeps buffers)
-anim.dispose();               // idempotent; mutators throw afterwards
+- Non-looping states with `onEnd` transition during the same `update()` tick that completes the clip.
+- `AnimatedSprite` is accepted by the Pixi adapter because it extends `Sprite`, but playback is stopped on bind so it cannot fight the adapter.
+- Every reachable frame key must exist in the texture map/spritesheet; missing keys throw `MissingTextureError`.
+- `duration`, `defaultFrameDuration`, and state `speed` must be finite numbers greater than zero.
+- Current schema backlog: add `minProperties` for `animations` and optional finite numeric maximums to mirror runtime guards.
 
-const off = anim.onStateChange((to, from) => {}, { signal?, once? }); // → unsubscribe
-const off2 = anim.onComplete((state) => {}, { signal?, once? });
+## AI Context
 
-anim.activeState;       // current state name
-anim.activeFrameKey;    // frame key into the atlas `frames` — hand to a renderer
-anim.activeFrameIndex;  // index within the active animation
-anim.disposed;          // boolean
-```
-
-Every subscription returns an unsubscribe function and accepts `{ signal }` (an `AbortSignal` that removes the listener) and `{ once }`.
-
-## Semantics (the precise rules)
-
-These rules are deterministic and frozen for the 1.x line once 1.0 ships:
-
-- **`update(dt)` order** — advance the timer by `dt × speed` (non-finite or non-positive `dt` clamps to `0`); evaluate transitions; recompute the active frame; fire `onComplete` for a finished non-looping clip and then any `onEnd` auto-transition. An explicit input transition therefore wins over end-of-clip behaviour on the same frame.
-- **Transition resolution** — among the transitions leaving the current state (plus **Any-State** `from: "*"`), candidates are ordered by `priority` (desc) then declared order (asc); the **first effective** one is taken. All `when` conditions must hold (logical AND).
-- **Self-transition rule** — a transition whose `to` equals the current state is *effective only if it consumes a Trigger*. A Number/Boolean self-loop is skipped, so it cannot reset the clip to frame 0 every frame. A trigger-bearing self-transition **restarts** the clip (e.g. re-attack) but does **not** fire `onStateChange` (the state name is unchanged).
-- **Triggers** — `fireTrigger(name)` marks a trigger pending; it stays pending across frames until a transition that checks it is taken, which **consumes** it. One fire → at most one transition.
-- **Frame timing** — the active frame is the first whose cumulative duration exceeds the elapsed time. Looping clips wrap at the total duration; non-looping clips hold the last frame and fire `onComplete` exactly once. Per-frame `duration` comes from the atlas `frames`; frames without one use `defaultFrameDuration` (default `100` ms). `speed` is a time-scale multiplier (`2` = twice as fast).
-- **Determinism** — identical input + `dt` sequences always yield identical frame sequences. The no-transition path allocates nothing.
-
-## Errors
-
-Named errors, never bare throws:
-
-- `InvalidGraphError` — thrown by `createSpriteAnimator` when the graph fails validation (missing animation, unknown transition target, operator/kind mismatch, non-positive duration/speed, `onEnd` with `loop:true`, …). Fail-fast: an invalid graph never yields a half-built animator.
-- `UnknownInputError` — `setInput` / `fireTrigger` on an input not declared in `inputs` (carries `.input`).
-- `InputTypeError` — wrong value type, `setInput` on a Trigger, or `fireTrigger` on a non-Trigger (carries `.input`).
-- `SpriteAnimatorDisposedError` — any mutator (`setInput` / `fireTrigger` / `update` / `reset`) after `dispose()`.
-
-## Comparison
-
-| | aispritejs | Rive | aifsmjs | raw `AnimatedSprite` |
-|---|---|---|---|---|
-| Control model | input-driven (Number/Boolean/Trigger) | input-driven | event-driven (logic) | manual |
-| Scope | visual animation | visual animation | game logic | playback only |
-| Runtime | tiny TS, no wasm | wasm runtime | tiny TS | — |
-| Renderer | agnostic + adapters | own | n/a | PixiJS |
-
-`aispritejs` and `aifsmjs` are complementary — logic FSM sets inputs, visual animator picks frames — and never coupled.
-
-## AI-agent reading guide
-
-- **Whole context in one fetch** — [`llms-full.txt`](llms-full.txt) concatenates this README, the changelog, the contributing guide, and the examples index.
-- **Source layout** — the core lives in [`src/sprite/`](src/sprite/): `types.ts` (every public type in one file), `machine.ts` (the `createSpriteAnimator` engine), `compile.ts` (graph validation + normalisation), `inputs.ts` (the input store), `emitter.ts` (the own typed signal), `errors.ts`. The root [`src/index.ts`](src/index.ts) re-exports the public surface and imports **no** renderer.
-- **Stability tiers** — see [STABILITY.md](STABILITY.md).
-
-## Testing
-
-Behavioural `vitest` suites cover inputs, transitions, trigger consumption, frame timing, `onComplete` / `onEnd`, subscriptions (`signal` / `once`), `dispose` / `reset`, and graph validation. `fast-check` property tests assert **transition determinism** (identical input + `dt` sequences ⇒ identical frame traces) and **trigger consumption** (one fire ⇒ one entry). Coverage runs at the family floor (≥95 % statements / ≥90 % branches / 100 % functions-and-lines).
-
-```bash
-pnpm test        # run once
-pnpm coverage    # with thresholds
-pnpm example:platformer  # renderer-free core demo
-pnpm example:explosion   # 6-frame play-once FX via the /pixi adapter
-```
-
-## Status
-
-**Aligned with the ai\*js family version line.** The package version is synchronised with the shared family version (`0.5.x` — the banner above and [CHANGELOG.md](CHANGELOG.md) carry the exact release). All four roadmap modules are live: the renderer-agnostic core (`.`), the PixiJS v8 adapter (`aispritejs/pixi`), the atlas parser (`aispritejs/atlas`), and the JSON Schema (`aispritejs/schema`). Prior hardening waves delivered compile-time rejection of non-finite `speed` / `duration` / `defaultFrameDuration`, runtime clamping of non-finite or non-positive `dt` to `0` in `update()`, and named-error coverage for hostile atlas shapes. Zero runtime dependencies; the root import graph contains no `pixi.js`; `pixi.js` is an optional, type-only peer used only by the `/pixi` subpath.
-
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md).
+- Short index: [`llms.txt`](llms.txt)
+- Full generated context: [`llms-full.txt`](llms-full.txt)
+- Stability contract: [`STABILITY.md`](STABILITY.md)
+- Current review backlog: [`REVIEW.md`](REVIEW.md)
+- Examples index: [`examples/README.md`](examples/README.md)
+- Release history: [`CHANGELOG.md`](CHANGELOG.md)
 
 ## License
 
-MIT © yshengliao — see [LICENSE](LICENSE).
+MIT
 
 ---
 
@@ -287,183 +115,25 @@ MIT © yshengliao — see [LICENSE](LICENSE).
 
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to aispritejs are summarized here.
 
 ## [Unreleased]
 
+- Documentation-only slimming pass across README, stability notes, review backlog, and LLM context.
+- Known follow-up: schema should mirror runtime hardening with `minProperties` and finite numeric bounds where useful.
+
 ## [0.5.7] - 2026-06-10
 
-### Fixed
+- Hardened graph compiler, atlas parser, Pixi adapter docs, and schema references.
+- Clarified optional `pixi.js` peer behavior and parser/compiler error layering.
+- Regenerated generated LLM context from canonical docs.
 
-- **`/pixi` adapter prototype-key lookup** — the missing-texture guard now uses `Object.hasOwn` instead of the `in` operator (mirroring the core's 0.5.x hasOwn fixes), so atlas frame keys like `"constructor"` / `"toString"` no longer resolve through `Object.prototype`. (Review wave 2026-06-10, SPR-S-01.)
-- A `when` array containing `null` / non-object entries is rejected by `parseAtlas` with `InvalidAtlasError` instead of crashing later in compilation with a bare `TypeError`. (SPR-S-02.)
-- An input `default` whose runtime type contradicts the declared `type` (e.g. `{ "type": "number", "default": "5" }`) is rejected with `InvalidGraphError` instead of being silently adopted into the input store. (SPR-S-03.)
-- The internal signal's `clear()` (and therefore `dispose()`) now runs each listener's cleanup, detaching abort hooks from caller-owned `AbortSignal`s — a long-lived signal no longer accumulates dead listeners. (SPR-R-01.)
+## Older releases
 
-### Changed
-
-- **Code splitting enabled (`tsup splitting: true`)** — each subpath bundle previously inlined its own copy of the shared core, so an `InvalidGraphError` thrown via `aispritejs/atlas`'s `loadAtlas` failed `instanceof` checks against the root export. Shared chunks restore cross-subpath class identity; the new `verify:dist` smoke asserts it (ESM + CJS). `check:size` now measures each entry's transitive chunk closure (index 4,175 / pixi 4,852 / atlas 5,216 B gzip measured; ~350 B of that is this wave's validation/cleanup code).
-- Supply-chain and release hardening: CI/publish actions SHA-pinned, npm CLI pinned (`11.16.0`), `permissions: contents: read` on CI, job timeouts, `npm publish --ignore-scripts`, manual dispatch defaults to dry-run, new `verify:docs` banner gate, two-stage typecheck (tests are now type-checked), `llms-full.txt` embeds `STABILITY.md`.
-
-### Docs
-
-- README `## Status` section rewritten: the version line now tracks the ai\*js family (the previous "own independent version line" claim was stale); normalised status banners added (EN + ZHTW); the compiled state's `frameKeys` alias contract documented (don't mutate atlas animations while a machine is live).
-
-## [0.5.6] - 2026-06-09
-
-### Added
-
-- `PixiSpriteAnimator` now exposes `onComplete` / `onStateChange`, delegating directly to the core animator.
-
-## [0.5.5] - 2026-06-08
-
-### Changed
-
-- Project home migrated to the [`islumina`](https://github.com/islumina) GitHub org; published from there via npm trusted publisher (OIDC + SLSA provenance). Version realigned from the `0.1.x` line to the shared ai\*js family version `0.5.5` — no API changes; the runtime is unchanged from `0.1.3`.
-
-## [0.1.3] - 2026-06-05
-
-### Added
-
-- Docs: a "When you DON'T need aispritejs" threshold section and a complete, runnable 6-frame
-  explosion (play-once FX) `/pixi` quickstart (`examples/02-explosion-pixi`); no source/API changes.
-
-## [0.1.2] - 2026-06-05
-
-### Changed
-
-- JSON Schema: `animations` now requires at least one entry (`minProperties: 1`), matching `states`
-  and the runtime (which already rejects an empty animations map via `InvalidGraphError`).
-
-### Fixed
-
-- Reject non-finite (`Infinity`/`NaN`) `speed`, `duration`, and `defaultFrameDuration` at compile
-  time (`InvalidGraphError`); clamp non-finite `dt` to 0 in `update()` — previously these silently
-  corrupted looping playback (frame stuck at 0 / `NaN` accumulation).
-
-## [0.1.1] - 2026-06-03
-
-First release published through the OIDC `publish.yml` pipeline (npm trusted
-publisher), so the npm tarball carries **SLSA build provenance** — `0.1.0` was
-published locally without it. No source/API changes.
-
-### Changed
-
-- Docs: corrected the **AI Generated** badge to the actual authoring model,
-  `Claude Code Opus 4.8`, in `README.md` and `README_ZHTW.md` (matching the
-  family's model-attribution convention).
-
-## [0.1.0] - 2026-06-03
-
-Initial release — the input-driven core plus the PixiJS v8 adapter, atlas
-parser, and JSON Schema (roadmap modules 1–4).
-
-### Added
-
-- **`createSpriteAnimator(graph)`** — the public factory returning a
-  `SpriteAnimator`. No exported class constructor (family convention: public
-  API = `createX`). Implemented as closures, so methods never depend on `this`.
-- **Inputs** — three kinds driving the visual state machine:
-  - `Number` (continuous, e.g. `speed`) and `Boolean` (toggle, e.g.
-    `isGrounded`), set via `setInput(name, value)`.
-  - `Trigger` (one-shot, e.g. `jump`), fired via `fireTrigger(name)`; stays
-    pending across frames until a transition consumes it.
-  - O(1) lookup; unknown names throw `UnknownInputError`, kind mismatches throw
-    `InputTypeError`, and `NaN` is rejected.
-- **Transition graph** — `StateDef` (animation key + `loop` / `onEnd` / `speed`),
-  `TransitionCondition` (`Equals` / `NotEquals` / `GreaterThan` / `LessThan` /
-  `Trigger`), and `TransitionDef` with **Any-State** (`from: "*"`) and integer
-  `priority`. Resolution is deterministic: highest priority then declared order,
-  taking the first *effective* transition. A self-targeting transition is
-  effective only if it consumes a Trigger (a Number/Boolean self-loop cannot
-  restart the clip every frame).
-- **`update(deltaMs)`** — advances the timer by `dt × speed` (negative `dt`
-  clamps to `0`), evaluates transitions, computes the active frame from
-  cumulative per-frame durations + loop, and fires `onComplete` once for a
-  finished non-looping clip followed by any `onEnd` auto-transition. No
-  per-frame allocation.
-- **Outputs** — `activeState`, `activeFrameKey`, `activeFrameIndex` for renderer
-  adapters.
-- **Typed emitters** — `onStateChange((to, from) => …)` and
-  `onComplete((state) => …)`, each returning an unsubscribe and accepting
-  `{ signal, once }`. Own minimal implementation; **does not** import
-  `aieventjs` or any sibling.
-- **Lifecycle** — `reset()` returns to the initial state and restores input
-  defaults without releasing buffers (fires `onStateChange` only if the state
-  changed); `dispose()` is idempotent and makes subsequent mutators throw
-  `SpriteAnimatorDisposedError`.
-- **Fail-fast validation** — `createSpriteAnimator` validates every
-  cross-reference the type system cannot (missing animation, unknown transition
-  target, operator/kind compatibility, positive durations and speed, `onEnd`
-  vs `loop`) and throws `InvalidGraphError`.
-- **Atlas-shaped input** — the graph consumes PixiJS-v8-native `animations` /
-  `frames` blocks (only frame keys + `duration` are read by the core),
-  augmented with the `aispritejs` `inputs` / `states` / `transitions` block. A
-  foreign event-driven `states` block is ignored.
-- **Docs** — README (canonical) + `README_ZHTW.md`, `STABILITY.md`,
-  `CONTRIBUTING.md`, `ROADMAP.md`, `llms.txt` / `llms-full.txt`, and a runnable
-  Node example (`examples/01-platformer-inputs`).
-
-### Added — `aispritejs/pixi` adapter
-
-- **`createPixiSpriteAnimator(sprite, graph, textures, options?)`** on the
-  `aispritejs/pixi` subpath — binds the renderer-agnostic core to a PixiJS v8
-  `Sprite`. On each `update(dt)` it runs the core machine and, when the active
-  frame changes, swaps the sprite's texture and applies that frame's atlas
-  anchor (`texture.defaultAnchor`) — preserving non-centre / foot pivots
-  (`{ applyAnchor: false }` opts out). Accepts a `Spritesheet` or a frame-key →
-  `Texture` map.
-- **`MissingTextureError`** — fail-fast at construction when a frame key the
-  graph references has no texture (carries `.keys`).
-- `pixi.js` declared as an **optional** `peerDependency`
-  (`peerDependenciesMeta.optional`). The adapter imports it **type-only**, so
-  the built subpath contains no runtime `pixi.js` require; the core never
-  imports the adapter.
-- Guard: if a *playing* `AnimatedSprite` is passed (it extends `Sprite`), its
-  internal playback is stopped on bind so its ticker cannot fight the adapter's
-  texture swaps. The adapter expects a plain `Sprite`.
-
-### Added — `aispritejs/atlas` parser + JSON Schema
-
-- **`parseAtlas(atlas, control?)`** and **`loadAtlas(atlas, control?)`** on the
-  `aispritejs/atlas` subpath — turn a parsed PixiJS-v8 atlas into a
-  `SpriteGraph` (or a ready `SpriteAnimator`). The atlas supplies the universal
-  `animations` / `frames`; the input-driven control comes from the atlas itself
-  (augmented shape) or from the `control` argument.
-- **Ignores a foreign event-driven `states` block** — the FSM `{ initial,
-  definitions }` shape emitted by other tools is detected and skipped; pass an
-  `aispritejs` control block instead. Verified against the real family pipeline
-  atlas (`test/fixtures/reimu-atlas.json`).
-- **`InvalidAtlasError`** for structural problems (fail-fast); semantic problems
-  surface as `InvalidGraphError` from the core.
-- **JSON Schema** shipped at `schemas/aispritejs-graph.schema.json` (draft
-  2020-12), exported as `aispritejs/schema`, describing the input-driven graph.
-  The parser mirrors it in code, so there is no runtime schema-validator
-  dependency.
-
-### Guarantees (CI)
-
-- Strict TypeScript (`strict` + `noUncheckedIndexedAccess` +
-  `exactOptionalPropertyTypes`), no `any`.
-- Dual ESM + CJS build via `tsup`; `sideEffects: false`; `.` + `/pixi` +
-  `/atlas` + `/schema` subpath exports; per-subpath gzip budgets.
-- **Zero runtime dependencies**; the root import graph contains no `pixi.js`,
-  DOM, or canvas API.
-- `prepublishOnly` gate: typecheck → lint → coverage → build → verify:exports →
-  verify:llms → check:size. Coverage at 100 % statements / branches / functions
-  / lines (above the family floor of 95 / 90 / 100 / 100). Core gzip ≈ 3.5 KB.
-- OIDC + SLSA provenance publish on tag-push.
-
-[Unreleased]: https://github.com/islumina/aispritejs/compare/v0.5.6...HEAD
-[0.5.6]: https://github.com/islumina/aispritejs/compare/v0.5.5...v0.5.6
-[0.5.5]: https://github.com/islumina/aispritejs/releases/tag/v0.5.5
-[0.1.3]: https://github.com/islumina/aispritejs/compare/v0.1.2...v0.1.3
-[0.1.2]: https://github.com/islumina/aispritejs/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/islumina/aispritejs/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/islumina/aispritejs/releases/tag/v0.1.0
+- `0.5.6` and `0.5.5` aligned package metadata and release hygiene with the ai*js family.
+- `0.1.3` added the Pixi adapter, atlas parser, schema export, and examples.
+- `0.1.2` and `0.1.1` hardened graph validation and documentation.
+- `0.1.0` introduced `createSpriteAnimator`, input-driven transitions, listener APIs, errors, and deterministic update semantics.
 
 ---
 
@@ -471,60 +141,29 @@ parser, and JSON Schema (roadmap modules 1–4).
 
 # Stability
 
-This document defines the stability tier of every public symbol exported by
-`aispritejs`. Tiers govern what breaks may occur in future minor / major bumps.
-The public API freezes at 1.0.0.
+## Stable Surface
 
-## Stable (since 0.1.0)
+| Surface | Status | Notes |
+| --- | --- | --- |
+| `aispritejs` | Stable | Core graph types, errors, and `createSpriteAnimator`. |
+| `aispritejs/pixi` | Stable | PixiJS v8 adapter; `pixi.js` optional peer. |
+| `aispritejs/atlas` | Stable | `parseAtlas`, `loadAtlas`, `InvalidAtlasError`. |
+| `aispritejs/schema` | Stable artifact | JSON Schema file export. |
 
-Fully stable. Breaking changes only at a major version bump (1.0+).
+## Behavioral Contract
 
-- **Factory** — `createSpriteAnimator(graph)`.
-- **`SpriteAnimator` methods** — `setInput`, `fireTrigger`, `update`, `reset`,
-  `dispose`, `onStateChange`, `onComplete`.
-- **`SpriteAnimator` accessors** — `activeState`, `activeFrameKey`,
-  `activeFrameIndex`, `disposed`.
-- **Error classes** — `InvalidGraphError`, `UnknownInputError`,
-  `InputTypeError`, `SpriteAnimatorDisposedError`.
-- **Types** — `SpriteGraph`, `InputDef` (`NumberInputDef` / `BooleanInputDef` /
-  `TriggerInputDef`), `StateDef`, `TransitionDef`, `TransitionCondition`,
-  `ConditionOp`, `FrameTiming`, `StateChangeHandler`, `CompleteHandler`,
-  `ListenerOptions`, `Unsubscribe`.
-- **`aispritejs/pixi`** — `createPixiSpriteAnimator(sprite, graph, textures,
-  options?)` binding the core to a PixiJS v8 `Sprite`, honouring per-frame
-  `duration` and the atlas `anchor` (`texture.defaultAnchor`).
-  `MissingTextureError`, `PixiSpriteAnimator`, `PixiSpriteAnimatorOptions`,
-  `TextureMap`. `pixi.js` is an **optional**, type-only `peerDependency`,
-  imported only by this subpath.
-- **`aispritejs/atlas`** — `parseAtlas(atlas, control?)`,
-  `loadAtlas(atlas, control?)`, `InvalidAtlasError`, `SpriteControl`. Consumes a
-  PixiJS-v8 atlas, ignores any foreign event-driven `states` block, and fails
-  fast. JSON Schema shipped at `schemas/aispritejs-graph.schema.json` (exported
-  as `aispritejs/schema`). Pure, zero-dependency.
+- Core is renderer-agnostic and has zero runtime dependencies.
+- Graph validation is fail-fast; invalid graphs do not produce half-built animators.
+- Trigger inputs are consumed when a transition uses them.
+- `update(dt)` clamps invalid/non-positive elapsed time to no progress.
+- `dispose()` is idempotent; post-dispose mutators throw.
+- Pixi adapter owns sprite texture/anchor while bound and does not destroy the sprite on dispose.
 
-### Behavioural contract (stable)
+## Caveats
 
-These semantics are part of the stable surface and are pinned by tests:
-
-- `update(dt)` order: advance `dt × speed` (negative clamps to `0`) → evaluate
-  transitions → compute frame → `onComplete` then `onEnd`.
-- Transition resolution: `priority` desc, then declared order; first *effective*
-  transition wins. A self-targeting transition is effective only if it consumes
-  a Trigger.
-- Triggers persist until consumed; one fire causes at most one transition.
-- Non-looping clips hold the last frame and fire `onComplete` exactly once;
-  looping clips wrap and never complete.
-- `defaultFrameDuration` is `100` ms; `speed` defaults to `1`.
-- Determinism: identical input + `dt` sequences ⇒ identical frame sequences.
-
-## Experimental
-
-None as of 0.1.0.
-
-## Draft (planned, not implemented)
-
-All roadmap modules (1–4) are implemented. No draft APIs outstanding; the next
-milestone is the 1.0.0 public-API freeze.
+- Atlas parser validates shape; compiler validates semantic graph correctness.
+- All reachable frames need textures in the Pixi adapter.
+- Schema hardening can improve editor feedback but does not replace runtime validation.
 
 ---
 
@@ -532,73 +171,34 @@ milestone is the 1.0.0 public-API freeze.
 
 # Contributing to aispritejs
 
-Thanks for helping improve `aispritejs` — the input-driven, renderer-agnostic
-sprite animation runtime in the **ai\*js** family.
+Keep the core renderer-free and keep adapters thin.
 
-## Quick start
+## Local workflow
 
 ```bash
 pnpm install
-pnpm test                 # vitest, run once
-pnpm coverage             # with thresholds
-pnpm typecheck            # tsc --noEmit (strict)
-pnpm lint                 # biome check src test
-pnpm build                # tsup → ESM + CJS + .d.ts
-pnpm example:platformer   # runnable Node demo
+pnpm typecheck
+pnpm test
+pnpm verify:docs
+pnpm build:llms
+pnpm verify:llms
+pnpm verify:exports
+pnpm verify:dist
+pnpm check:size
 ```
 
-The full pre-publish gate (also run in CI) is:
+Run `pnpm lint` before PRs. If docs change, regenerate `llms-full.txt`.
 
-```bash
-pnpm typecheck && pnpm lint && pnpm coverage && pnpm build \
-  && pnpm verify:exports && pnpm verify:llms && pnpm check:size
-```
+## Rules
 
-If you edit any of `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, or
-`examples/README.md`, regenerate the bundled LLM context and commit it:
+- Root imports must not pull Pixi, DOM, canvas, or renderer code.
+- Keep parser structural errors and compiler semantic errors distinct.
+- Add tests for graph validation, trigger consumption, frame timing, `onEnd`, listeners, dispose, and Pixi missing-texture paths.
+- Keep examples short and point to runnable files under `examples/`.
 
-```bash
-pnpm build:llms   # writes llms-full.txt; verify:llms fails CI if it drifts
-```
+## License
 
-## What gets in easily
-
-- Bug fixes with a regression test.
-- More renderer adapters behind their own subpath (each importing its renderer
-  as an **optional** `peerDependency`, never from the core).
-- Docs, examples, and test coverage.
-
-## What needs discussion first
-
-- Any change to the **public API** (the `createSpriteAnimator` surface or the
-  graph data format) — open an issue. The API freezes at 1.0.0.
-- A new control model or operator — the input-driven model (Number / Boolean /
-  Trigger) is deliberate; see the Rive comparison in the README.
-
-## Design principles (non-negotiable)
-
-- **Renderer-agnostic core.** `src/index.ts` and everything it imports must not
-  touch `pixi.js`, the DOM, or any canvas API. Only adapter subpaths may.
-- **Zero cross-package imports.** Never import `aifsmjs`, `aieventjs`,
-  `aiplaybook`, or any sibling. Ship your own minimal code.
-- **Input-driven, not event-driven.** This is a *visual* animator, not a
-  game-logic FSM (that is `aifsmjs`). Make no assumption about the logic layer.
-- **Deterministic & allocation-free.** Identical input + `dt` sequences must
-  produce identical frames; the no-transition `update` path allocates nothing.
-- **Fail-fast.** Validate graphs and inputs eagerly with named errors.
-- **`createX` factories, never bare constructors.** `dispose()` is idempotent;
-  subscriptions return an unsubscribe and accept `{ signal, once }`.
-- **Domain-neutral surface.** No game nouns (`player`, `score`, …) in the public
-  API; `idle` / `walk` / `jump` only as examples.
-
-## Commit & PR style
-
-- Conventional-commit subjects (`feat:`, `fix:`, `docs:`, `test:`, `chore:`).
-- End commit messages with a `Co-Authored-By:` trailer for the model that wrote
-  them.
-- Keep PRs focused; update `CHANGELOG.md` under `[Unreleased]`.
-- Do not bump the version or push tags in a PR — releases are cut by the
-  maintainer (the publish workflow runs on tag-push via OIDC).
+MIT
 
 ---
 

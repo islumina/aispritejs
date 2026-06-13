@@ -1,40 +1,10 @@
 # aispritejs
 
-> Input-driven, renderer-agnostic 2D sprite animation runtime — a tiny, Rive-like *visual* state machine. Developers set runtime inputs (`Number` / `Boolean` / `Trigger`); a JSON transition graph decides which animation frame is on screen. The core is pure TypeScript with zero runtime dependencies and never imports `pixi.js`, the DOM, or any canvas API. Bind it to a renderer (PixiJS v8, etc.) through a thin adapter. Browser / Node / Bun / Deno / WebView / Worker friendly.
+Renderer-agnostic input-driven sprite animator with Pixi adapter, atlas parser, and schema export.
 
-Primary audience: developers building browser-based games and interactive web experiences who want to decouple *visual* animation state from game logic. You set parameters like `speed=4`, `isGrounded=false`, `fireTrigger("jump")`; `aispritejs` picks the visual state and ticks the active frame. It is a complement to — never a dependency of — a game-logic FSM such as `aifsmjs` (event-driven); here the model is input-driven, like Rive, but sprite-atlas based with no wasm runtime.
-
-Key guarantees: deterministic `update(dt)` (identical inputs + Δt ⇒ identical frames); no per-frame allocation; named errors (`InvalidGraphError`, `UnknownInputError`, `InputTypeError`, `SpriteAnimatorDisposedError`) instead of bare throws; public API is the `createSpriteAnimator` factory (no exported class constructor); `dispose()` idempotent, `reset()` keeps buffers, subscriptions return an unsubscribe and accept `{ signal, once }`; own minimal typed emitter (does NOT import `aieventjs`); `sideEffects: false`; core gzip ≈ 3.5 KB.
-
-## Documentation
-
-- [README.md](README.md): canonical English README — Why, Mental Model, Core API, Semantics (the precise rules), Errors, Decoupling, Comparison, AI-Agent Reading Guide, Testing, Status, Roadmap.
-- [README_ZHTW.md](README_ZHTW.md): Traditional Chinese mirror of the canonical README.
-- [ROADMAP.md](ROADMAP.md): phased plan (v0.1.0 core → v0.2.0 PixiJS adapter → v0.3.0 atlas parser + JSON Schema → 1.0 freeze) and design invariants.
-- [STABILITY.md](STABILITY.md): stability tier of every public symbol plus the pinned behavioural contract.
-- [CHANGELOG.md](CHANGELOG.md): Keep a Changelog format; the 0.1.1 entry notes SLSA build provenance (OIDC publish); the 0.1.0 entry covers the full core surface and CI guarantees.
-- [CONTRIBUTING.md](CONTRIBUTING.md): quick-start commands, design principles, commit & PR style.
-- [llms-full.txt](llms-full.txt): README + CHANGELOG + CONTRIBUTING + examples index concatenated into one file — load this when an AI agent needs the full context in a single fetch.
-
-## Source layout
-
-- [src/index.ts](src/index.ts): root barrel — re-exports the `sprite/` core. Imports no renderer.
-- [src/sprite/types.ts](src/sprite/types.ts): every public type in one file (`SpriteGraph`, `InputDef`, `StateDef`, `TransitionDef`, `TransitionCondition`, `SpriteAnimator`, handlers).
-- [src/sprite/machine.ts](src/sprite/machine.ts): `createSpriteAnimator` — the input-driven engine (`setInput` / `fireTrigger` / `update` / `reset` / `dispose`, `onStateChange` / `onComplete`, `activeState` / `activeFrameKey` / `activeFrameIndex`).
-- [src/sprite/compile.ts](src/sprite/compile.ts): graph validation + normalisation into precomputed, allocation-free runtime form (per-state cumulative timings; per-state transition candidate lists sorted by priority then declared order).
-- [src/sprite/inputs.ts](src/sprite/inputs.ts): O(1) input store (Number/Boolean values + Trigger pending flags) with default-reset.
-- [src/sprite/emitter.ts](src/sprite/emitter.ts): the package's own minimal typed signal with `{ signal, once }` — no `aieventjs` import.
-- [src/sprite/errors.ts](src/sprite/errors.ts): the four named error classes.
-- [src/pixi/animator.ts](src/pixi/animator.ts): the `aispritejs/pixi` adapter — `createPixiSpriteAnimator(sprite, graph, textures, options?)` swaps a PIXI.Sprite's texture to the active frame and applies the atlas anchor. Imports `pixi.js` **type-only** (optional peer); the core never imports it. Subpath: `aispritejs/pixi`.
-- [src/atlas/parse.ts](src/atlas/parse.ts): the `aispritejs/atlas` parser — `parseAtlas(atlas, control?)` / `loadAtlas(atlas, control?)` turn a PixiJS-v8 atlas into a `SpriteGraph` / `SpriteAnimator`, ignoring any foreign event-driven `states` block. `InvalidAtlasError`, `SpriteControl`. Pure, zero-dependency. Subpath: `aispritejs/atlas`. JSON Schema at [schemas/aispritejs-graph.schema.json](schemas/aispritejs-graph.schema.json), exported as `aispritejs/schema`.
-
-## Examples
-
-- [examples/01-platformer-inputs/index.ts](examples/01-platformer-inputs/index.ts): a renderer-free `idle` / `walk` / `jump` graph — a Number drives idle⇄walk, a Trigger fires an Any-State jump that beats walk by priority and is one-shot, `jump` auto-returns to idle via `onEnd`. Run with `pnpm example:platformer`.
-
-## Quality gates
-
-- [.github/workflows/ci.yml](.github/workflows/ci.yml): Node 20 + 22 matrix; typecheck, lint (biome), coverage (vitest + @vitest/coverage-v8 at 95/90/100/100 thresholds, met at 100% across the board), build (tsup → ESM + CJS + .d.ts), exports verification, size budget, and llms drift check.
-- [scripts/check-size.mjs](scripts/check-size.mjs): per-subpath gzip budget (core ≤ 3.8 KB; `aispritejs/pixi` ≤ 4.2 KB, pixi.js external; `aispritejs/atlas` ≤ 4.4 KB, zero-dependency).
-- [scripts/verify-exports.mjs](scripts/verify-exports.mjs): asserts every `package.json#exports` entry resolves to a real file in `dist/`.
-- [.github/workflows/publish.yml](.github/workflows/publish.yml): OIDC trusted-publisher + provenance on tag-push.
+- Start: README.md
+- Stability: STABILITY.md
+- Current backlog: REVIEW.md
+- Examples: examples/README.md
+- Changelog: CHANGELOG.md
+- Full generated context: llms-full.txt
