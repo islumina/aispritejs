@@ -4,8 +4,10 @@ All notable changes to aispritejs are summarized here.
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-06-14
+
+- Changed: the graph compiler and JSON Schema now reject an empty `animations` map and enforce finite numeric maximums — frame/default duration `<= 86400000` ms (24 h) and state `speed` `<= 1000`.
 - Documentation-only slimming pass across README, stability notes, review backlog, and LLM context.
-- Known follow-up: schema should mirror runtime hardening with `minProperties` and finite numeric bounds where useful.
 
 ## [0.5.7] - 2026-06-10
 

@@ -2,7 +2,7 @@
 
 Input-driven、renderer-agnostic 的 2D sprite animation runtime。JSON graph 會把 Number/Boolean/Trigger inputs 對應到 visual states 與 frames；adapter 再把選到的 frame 綁到 renderer。
 
-> **狀態：0.5.7 - 穩定 family-aligned API。** Core、PixiJS adapter、atlas parser、JSON Schema subpath 都已發布。
+> **狀態：0.5.8 - 穩定 family-aligned API。** Core、PixiJS adapter、atlas parser、JSON Schema subpath 都已發布。
 
 ## 安裝
 
