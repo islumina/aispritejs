@@ -43,6 +43,10 @@ export interface CompiledGraph {
 }
 
 const DEFAULT_FRAME_DURATION = 100;
+/** Maximum allowed frame / default-frame duration in ms (24 hours). */
+const MAX_DURATION = 86_400_000;
+/** Maximum allowed state speed multiplier (1000× normal). */
+const MAX_SPEED = 1_000;
 
 /** @internal */
 export function isObject(v: unknown): v is Record<string, unknown> {
@@ -50,6 +54,10 @@ export function isObject(v: unknown): v is Record<string, unknown> {
 }
 
 export function compileGraph(graph: SpriteGraph): CompiledGraph {
+  if (Object.keys(graph.animations).length === 0) {
+    throw new InvalidGraphError("animations must declare at least one animation");
+  }
+
   const stateEntries = Object.entries(graph.states);
   if (stateEntries.length === 0) {
     throw new InvalidGraphError("states must declare at least one state");
@@ -88,6 +96,11 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
       `defaultFrameDuration must be a finite number > 0, got ${defaultDuration}`,
     );
   }
+  if (defaultDuration > MAX_DURATION) {
+    throw new InvalidGraphError(
+      `defaultFrameDuration must be ≤ ${MAX_DURATION} ms, got ${defaultDuration}`,
+    );
+  }
 
   if (graph.frames) {
     for (const [key, timing] of Object.entries(graph.frames)) {
@@ -100,6 +113,11 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
       ) {
         throw new InvalidGraphError(
           `frame "${key}" duration must be a finite number > 0, got ${timing.duration}`,
+        );
+      }
+      if (timing.duration !== undefined && timing.duration > MAX_DURATION) {
+        throw new InvalidGraphError(
+          `frame "${key}" duration must be ≤ ${MAX_DURATION} ms, got ${timing.duration}`,
         );
       }
     }
@@ -125,6 +143,9 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
       throw new InvalidGraphError(
         `state "${name}" speed must be a finite number > 0, got ${speed}`,
       );
+    }
+    if (speed > MAX_SPEED) {
+      throw new InvalidGraphError(`state "${name}" speed must be ≤ ${MAX_SPEED}, got ${speed}`);
     }
     const loop = st.loop === true;
     if (loop && st.onEnd !== undefined) {

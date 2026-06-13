@@ -320,3 +320,64 @@ describe("graph validation", () => {
     ).not.toThrow();
   });
 });
+
+// Schema hardening: minProperties on animations and finite numeric maximums.
+// MAX_DURATION = 86_400_000 ms (24 h) for duration/defaultFrameDuration.
+// MAX_SPEED    = 1_000 for state speed multiplier.
+describe("schema hardening — minProperties + finite maximums", () => {
+  // (a) empty animations object must be rejected with a dedicated message
+  it("rejects an empty animations map with 'at least one animation' message (minProperties: 1)", () => {
+    expect(() =>
+      createSpriteAnimator({
+        ...base(),
+        animations: {},
+        states: { idle: { animation: "idle" } },
+      }),
+    ).toThrow(new InvalidGraphError("animations must declare at least one animation"));
+  });
+
+  // (b) duration maximum
+  it("rejects a frame duration above the 24-hour ceiling (MAX_DURATION)", () => {
+    expect(() =>
+      createSpriteAnimator({ ...base(), frames: { i0: { duration: 86_400_001 } } }),
+    ).toThrow(InvalidGraphError);
+  });
+
+  it("accepts a frame duration at the 24-hour ceiling (MAX_DURATION)", () => {
+    expect(() =>
+      createSpriteAnimator({ ...base(), frames: { i0: { duration: 86_400_000 } } }),
+    ).not.toThrow();
+  });
+
+  // (b) defaultFrameDuration maximum
+  it("rejects defaultFrameDuration above the 24-hour ceiling (MAX_DURATION)", () => {
+    expect(() => createSpriteAnimator({ ...base(), defaultFrameDuration: 86_400_001 })).toThrow(
+      InvalidGraphError,
+    );
+  });
+
+  it("accepts defaultFrameDuration at the 24-hour ceiling (MAX_DURATION)", () => {
+    expect(() =>
+      createSpriteAnimator({ ...base(), defaultFrameDuration: 86_400_000 }),
+    ).not.toThrow();
+  });
+
+  // (b) speed maximum
+  it("rejects a state speed above 1000× (MAX_SPEED)", () => {
+    expect(() =>
+      createSpriteAnimator({
+        ...base(),
+        states: { idle: { animation: "idle", speed: 1000.001 } },
+      }),
+    ).toThrow(InvalidGraphError);
+  });
+
+  it("accepts a state speed at 1000× (MAX_SPEED)", () => {
+    expect(() =>
+      createSpriteAnimator({
+        ...base(),
+        states: { idle: { animation: "idle", speed: 1000 } },
+      }),
+    ).not.toThrow();
+  });
+});
