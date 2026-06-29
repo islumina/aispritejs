@@ -1,6 +1,6 @@
 {
   "name": "aispritejs",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "Input-driven, renderer-agnostic 2D sprite animation runtime — a tiny, Rive-like visual state machine driven by Number / Boolean / Trigger inputs. JSON transition graph, deterministic update(dt), zero runtime dependencies. Browser / Node / Bun / Deno / WebView / Worker friendly.",
   "keywords": [
     "sprite",

@@ -137,7 +137,13 @@ export function createSpriteAnimator(graph: SpriteGraph): SpriteAnimator {
     if (ended && !completed) {
       completed = true;
       complete.emit(cs.name);
-      if (cs.onEnd !== undefined) enter(cs.onEnd, NO_TRIGGERS);
+      // An onComplete handler may have called reset() or dispose() during the
+      // emit above. Guard before entering onEnd: skip if the machine was
+      // disposed, if the current state was replaced (reset moved us away), or
+      // if the completed flag was cleared (reset restarted the same state).
+      if (cs.onEnd !== undefined && !disposed && current === cs && completed) {
+        enter(cs.onEnd, NO_TRIGGERS);
+      }
     }
   }
 

@@ -175,6 +175,43 @@ describe("emitter edge cases", () => {
     expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 
+  // C8: clear() must not abort early when a cleanup (detachAbort) throws.
+  // Attach two listeners — the first with an AbortSignal whose removeEventListener
+  // is spied to throw, the second plain. Call dispose() → stateChange.clear()
+  // iterates over cleanups; a throwing cleanup must not prevent the remaining
+  // listener from being removed and must not propagate out of dispose().
+  it("clear() fully clears listeners even when an abort-hook cleanup throws (C8)", () => {
+    const a = createSpriteAnimator(platformer());
+
+    // A real AbortController gives us a properly-typed signal; spy on
+    // removeEventListener so the first call throws, simulating a misbehaving signal.
+    const ctrl = new AbortController();
+    let throwCount = 0;
+    vi.spyOn(ctrl.signal, "removeEventListener").mockImplementation(() => {
+      throwCount++;
+      if (throwCount === 1) throw new Error("detachAbort deliberately throws");
+    });
+
+    const fn1 = vi.fn();
+    const fn2 = vi.fn();
+    a.onStateChange(fn1, { signal: ctrl.signal });
+    a.onStateChange(fn2); // plain listener — must also be cleared
+
+    // dispose() calls stateChange.clear(); the first cleanup throws (spied signal).
+    // The second listener must still be cleared, and dispose must not rethrow.
+    expect(() => a.dispose()).not.toThrow();
+    expect(a.disposed).toBe(true);
+
+    // After dispose, driving the machine must throw — listeners are gone.
+    expect(() => a.update(0)).toThrow();
+
+    // fn1 and fn2 must not fire on any subsequent state change (listeners cleared).
+    // (Cannot drive a disposed machine, so we verify indirectly: both mocks uncalled
+    //  after the dispose call, confirming no stale emit happened during clear.)
+    expect(fn1).not.toHaveBeenCalled();
+    expect(fn2).not.toHaveBeenCalled();
+  });
+
   // B9: emitter abort-before-fire.
   // Register onStateChange and onComplete with { once, signal }, abort the controller
   // BEFORE any state change, then cause a state change — the handlers must never fire

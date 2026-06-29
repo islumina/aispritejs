@@ -509,3 +509,95 @@ describe("onEnd chain", () => {
     expect(a.activeState).toBe("stateC"); // no onEnd, stays put
   });
 });
+
+// C7: onComplete handler calls reset() — onEnd must NOT overwrite it
+// A non-looping state with onEnd:"idle" whose onComplete handler calls reset().
+// After complete.emit() fires the handler, the machine is back in the initial
+// state. The subsequent enter(onEnd) must be skipped; the animator must stay in
+// the initial state, not jump to onEnd.
+describe("onComplete reset/dispose guard (C7)", () => {
+  function makeGraph() {
+    return {
+      animations: {
+        initial: ["i0"],
+        action: ["a0"],
+        after: ["af0"],
+      },
+      frames: {
+        i0: { duration: 100 },
+        a0: { duration: 100 },
+        af0: { duration: 100 },
+      },
+      inputs: {},
+      states: {
+        initial: { animation: "initial", loop: true },
+        action: { animation: "action", loop: false, onEnd: "after" },
+        after: { animation: "after", loop: true },
+      },
+      transitions: [],
+      initial: "initial",
+    } as const;
+  }
+
+  it("reset() inside onComplete keeps the machine in the initial state (not onEnd)", () => {
+    const a = createSpriteAnimator(makeGraph());
+    // Manually enter "action" by rebuilding with action as initial — or just
+    // use a graph where action is the declared initial so update() triggers it.
+    const b = createSpriteAnimator({
+      animations: {
+        action: ["a0"],
+        after: ["af0"],
+        home: ["h0"],
+      },
+      frames: {
+        a0: { duration: 100 },
+        af0: { duration: 100 },
+        h0: { duration: 100 },
+      },
+      inputs: {},
+      states: {
+        action: { animation: "action", loop: false, onEnd: "after" },
+        after: { animation: "after", loop: true },
+        home: { animation: "home", loop: true },
+      },
+      transitions: [],
+      initial: "action",
+    });
+
+    b.onComplete(() => b.reset());
+    b.update(100); // action completes → onComplete fires reset() → should stay in "action" (initial)
+    // onEnd "after" must NOT overwrite the reset
+    expect(b.activeState).toBe("action"); // initial state of this graph
+    expect(b.disposed).toBe(false);
+  });
+
+  it("dispose() inside onComplete leaves the machine disposed and activeState unchanged", () => {
+    const b = createSpriteAnimator({
+      animations: {
+        action: ["a0"],
+        after: ["af0"],
+      },
+      frames: {
+        a0: { duration: 100 },
+        af0: { duration: 100 },
+      },
+      inputs: {},
+      states: {
+        action: { animation: "action", loop: false, onEnd: "after" },
+        after: { animation: "after", loop: true },
+      },
+      transitions: [],
+      initial: "action",
+    });
+
+    const stateAtDispose = { name: "" };
+    b.onComplete(() => {
+      stateAtDispose.name = b.activeState;
+      b.dispose();
+    });
+    b.update(100); // action completes → onComplete fires dispose()
+    // onEnd "after" must NOT run after dispose
+    expect(b.disposed).toBe(true);
+    expect(b.activeState).toBe("action"); // unchanged after dispose
+  });
+});

@@ -33,9 +33,13 @@ const dist = resolve(root, "dist");
 // remaining ~180–400 B per entry is the per-file gzip overhead of splitting,
 // accepted for cross-subpath class identity (consumers loading more than one
 // subpath now share the chunk instead of downloading the core repeatedly).
+//
+// wave 0.5.9 actuals (2026-06-29): C7 onEnd guard + C8 clear() try/catch add
+// ~40 B gzip to core (4,288 → 4,328 B) and pixi closure (4,966 → 5,005 B).
+// Budgets raised +100 B each to absorb the intentional guard code.
 const budgets = {
-  "index.js": 4_300,
-  "pixi/index.js": 5_000,
+  "index.js": 4_400,
+  "pixi/index.js": 5_100,
   "atlas/index.js": 5_400,
 };
 
