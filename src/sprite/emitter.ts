@@ -72,13 +72,22 @@ export function createSignal<P>(): Signal<P> {
   function clear(): void {
     // Run each cleanup so abort hooks are detached from caller AbortSignals
     // (SPR-R-01). Snapshot the values first because cleanup() mutates the map.
-    for (const cleanup of [...cleanups.values()]) cleanup();
-    // Each cleanup already removed its own entries; these clears make the
-    // empty post-condition explicit. (A throwing cleanup would propagate and
-    // skip them — listener callbacks and detach hooks are plain functions in
-    // every documented path, so that trade-off is accepted over a try/finally.)
-    listeners.clear();
-    cleanups.clear();
+    // A throwing cleanup (e.g. a misbehaving AbortSignal.removeEventListener)
+    // must not abort the iteration and must not prevent the sets from being
+    // fully emptied — mirror the aifsmjs dispose() try/catch + finally pattern.
+    try {
+      for (const cleanup of [...cleanups.values()]) {
+        try {
+          cleanup();
+        } catch {
+          // Swallow per-cleanup errors; every registered cleanup must still run.
+        }
+      }
+    } finally {
+      // Guarantee an empty post-condition even if the loop itself somehow throws.
+      listeners.clear();
+      cleanups.clear();
+    }
   }
 
   return { on, emit, clear };

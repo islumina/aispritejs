@@ -81,7 +81,6 @@ view.dispose(); // disposes core animator; does not destroy the Pixi sprite
 - `AnimatedSprite` is accepted by the Pixi adapter because it extends `Sprite`, but playback is stopped on bind so it cannot fight the adapter.
 - Every reachable frame key must exist in the texture map/spritesheet; missing keys throw `MissingTextureError`.
 - `duration`, `defaultFrameDuration`, and state `speed` must be finite numbers greater than zero.
-- Current schema backlog: add `minProperties` for `animations` and optional finite numeric maximums to mirror runtime guards.
 
 ## AI Context
 
