@@ -4,6 +4,12 @@ All notable changes to aispritejs are summarized here.
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-06-29
+
+- Fixed: a `reset()` / `dispose()` called from inside an `onComplete` handler is no longer clobbered by the state's `onEnd` auto-transition.
+- Fixed: `clear()` fully clears its listener set even if an abort cleanup throws.
+- Docs: schema hardening (non-empty `animations` + finite numeric maxima) is documented as shipped (was listed as backlog).
+
 ## [0.5.8] - 2026-06-14
 
 - Changed: the graph compiler and JSON Schema now reject an empty `animations` map and enforce finite numeric maximums — frame/default duration `<= 86400000` ms (24 h) and state `speed` `<= 1000`.

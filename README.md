@@ -2,7 +2,7 @@
 
 Input-driven, renderer-agnostic 2D sprite animation runtime. A JSON graph maps Number/Boolean/Trigger inputs to visual states and frames; adapters bind the chosen frame to a renderer.
 
-> **Status: 0.5.8 - stable family-aligned surface.** Core, PixiJS adapter, atlas parser, and JSON Schema subpath are shipped.
+> **Status: 0.5.9 - stable family-aligned surface.** Core, PixiJS adapter, atlas parser, and JSON Schema subpath are shipped.
 
 ## Install
 
