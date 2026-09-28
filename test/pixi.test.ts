@@ -238,6 +238,17 @@ describe("createPixiSpriteAnimator", () => {
     }
   });
 
+  it("does not stop() a playable sprite when the bind fails", () => {
+    const s = makeSprite();
+    let stopCalls = 0;
+    const playable = { ...s.asSprite(), stop: () => stopCalls++ } as unknown as Sprite;
+    const incompleteMap = { idle_0: fakeTexture({ x: 0.5, y: 0.86 }) };
+    expect(() => createPixiSpriteAnimator(playable, graph(), incompleteMap)).toThrow(
+      MissingTextureError,
+    );
+    expect(stopCalls).toBe(0);
+  });
+
   it("binds the initial frame even when its key is the empty string", () => {
     const s = makeSprite();
     const emptyKeyGraph: SpriteGraph = {
