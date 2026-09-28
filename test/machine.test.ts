@@ -239,7 +239,12 @@ describe("priority and declared-order tie-break", () => {
           when: [{ input: "speed", op: "GreaterThan", value: 0 }],
           priority: 10,
         },
-        { from: "run", to: "idle", when: [{ input: "tired", op: "Equals", value: true }], priority: 0 },
+        {
+          from: "run",
+          to: "idle",
+          when: [{ input: "tired", op: "Equals", value: true }],
+          priority: 0,
+        },
       ],
       initial: "run",
     });
