@@ -143,6 +143,9 @@ export function createPixiSpriteAnimator(
   // Swap the sprite's texture (and anchor) only when the active frame changes.
   let boundKey = "";
   function sync(): void {
+    // A listener may dispose() (and destroy the sprite) during core.update() /
+    // core.reset(); the sprite is no longer ours to write to after that.
+    if (core.disposed) return;
     const key = core.activeFrameKey;
     if (key === boundKey) return;
     boundKey = key;
