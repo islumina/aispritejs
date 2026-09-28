@@ -79,7 +79,7 @@ view.dispose(); // disposes core animator; does not destroy the Pixi sprite
 
 - Non-looping states with `onEnd` transition during the same `update()` tick that completes the clip.
 - `AnimatedSprite` is accepted by the Pixi adapter because it extends `Sprite`, but playback is stopped on bind so it cannot fight the adapter.
-- Every reachable frame key must exist in the texture map/spritesheet; missing keys throw `MissingTextureError`.
+- Every frame key in every declared animation must exist in the texture map/spritesheet — including an animation no state references — or the adapter throws `MissingTextureError` at construction.
 - `duration`, `defaultFrameDuration`, and state `speed` must be finite numbers greater than zero.
 
 ## AI Context
