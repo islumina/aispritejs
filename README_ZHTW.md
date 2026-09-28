@@ -81,7 +81,7 @@ view.dispose(); // dispose core animator；不 destroy Pixi sprite
 - Pixi adapter 接受 `AnimatedSprite`，因為它 extends `Sprite`；bind 時會 stop playback，避免跟 adapter 搶 texture。
 - 每個 animation（即使沒有任何 state 參照到它）裡的每個 frame key 都必須存在於 texture map/spritesheet，否則 adapter 會在 construction 時丟 `MissingTextureError`。
 - `duration`、`defaultFrameDuration`、state `speed` 都必須是 finite 且大於 0。
-- 目前 schema backlog：替 `animations` 加 `minProperties`，並考慮用 finite numeric maximums 對齊 runtime guards。
+- `animations` 不可為空物件（`minProperties: 1`）；`duration`、`defaultFrameDuration` 上限為 86,400,000 ms（24 小時），state `speed` 上限為 1000——schema 與 runtime 已一致。
 
 ## AI Context
 
