@@ -115,6 +115,62 @@ describe("onComplete", () => {
     expect(fn).toHaveBeenCalledExactlyOnceWith("attack");
     unsub(); // no throw after a once-handler already cleaned up
   });
+
+  // Each onComplete subscription is independent even when the same handler
+  // function is subscribed more than once (mirrors onStateChange).
+  function selfLoop(): SpriteGraph {
+    return {
+      animations: { a: ["a0"] },
+      inputs: {},
+      states: { a: { animation: "a", onEnd: "a" } },
+      transitions: [],
+    };
+  }
+
+  it("a stale unsubscribe does not cancel a later subscription of the same handler", () => {
+    const a = createSpriteAnimator(selfLoop());
+    const h = vi.fn();
+    const off1 = a.onComplete(h);
+    off1();
+    a.onComplete(h);
+    off1(); // idempotent: must be a no-op now
+    a.update(100);
+    expect(h).toHaveBeenCalledExactlyOnceWith("a");
+  });
+
+  it("the same handler subscribed twice is called twice", () => {
+    const a = createSpriteAnimator(selfLoop());
+    const h = vi.fn();
+    a.onComplete(h);
+    a.onComplete(h);
+    a.update(100);
+    expect(h).toHaveBeenCalledTimes(2);
+  });
+
+  it("aborting one subscription's signal leaves another subscription of the same handler", () => {
+    const a = createSpriteAnimator(selfLoop());
+    const h = vi.fn();
+    const s1 = new AbortController();
+    a.onComplete(h, { signal: s1.signal });
+    a.onComplete(h);
+    s1.abort();
+    a.update(100);
+    expect(h).toHaveBeenCalledTimes(1);
+  });
+
+  it("dispose() detaches every abort hook when the same handler is subscribed twice", () => {
+    const a = createSpriteAnimator(selfLoop());
+    const h = vi.fn();
+    const s1 = new AbortController();
+    const s2 = new AbortController();
+    const spy1 = vi.spyOn(s1.signal, "removeEventListener");
+    const spy2 = vi.spyOn(s2.signal, "removeEventListener");
+    a.onComplete(h, { signal: s1.signal });
+    a.onComplete(h, { signal: s2.signal });
+    a.dispose();
+    expect(spy1).toHaveBeenCalledWith("abort", expect.any(Function));
+    expect(spy2).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
 });
 
 describe("emitter edge cases", () => {

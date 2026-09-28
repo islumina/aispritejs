@@ -184,7 +184,9 @@ export function createSpriteAnimator(graph: SpriteGraph): SpriteAnimator {
     },
     onComplete(handler: CompleteHandler, options?: ListenerOptions): Unsubscribe {
       if (disposed) return () => {};
-      return complete.on(handler, options);
+      // Wrap per call (as onStateChange does) so each subscription has its own
+      // identity in the signal's registry, even for a reused handler.
+      return complete.on((name) => handler(name), options);
     },
     get activeState() {
       return current.name;
