@@ -92,7 +92,7 @@ view.dispose(); // disposes core animator; does not destroy the Pixi sprite
 
 - Non-looping states with `onEnd` transition during the same `update()` tick that completes the clip.
 - `AnimatedSprite` is accepted by the Pixi adapter because it extends `Sprite`, but playback is stopped on bind so it cannot fight the adapter.
-- Every reachable frame key must exist in the texture map/spritesheet; missing keys throw `MissingTextureError`.
+- Every frame key in every declared animation must exist in the texture map/spritesheet — including an animation no state references — or the adapter throws `MissingTextureError` at construction.
 - `duration`, `defaultFrameDuration`, and state `speed` must be finite numbers greater than zero.
 
 ## AI Context
@@ -117,6 +117,13 @@ MIT
 All notable changes to aispritejs are summarized here.
 
 ## [Unreleased]
+
+- Fixed: `emit()` re-checks listener membership on every call, so a `{ once }` listener can no longer fire twice when an earlier listener re-enters `update()`, and a listener removed mid-dispatch (by `dispose()` or an aborted `signal`) is no longer invoked.
+- Fixed: `onComplete` gives each subscription its own identity instead of sharing a registry entry keyed by the raw handler, so subscribing the same handler twice no longer collides.
+- Fixed: a throwing `onComplete`/`onStateChange` listener no longer wedges the state machine on its last frame — dispatch keeps calling the remaining listeners and `update()` still enters `onEnd`.
+- Fixed: the Pixi adapter no longer writes to the sprite after `dispose()` is called from inside a listener mid-`update()`/`reset()`.
+- Fixed: the Pixi adapter binds the initial frame correctly when its key is the empty string.
+- Fixed: the Pixi adapter only stops a playable sprite's own playback after a bind succeeds, so a failed call has no side effect on the caller's sprite.
 
 ## [0.5.9] - 2026-06-29
 
@@ -169,7 +176,7 @@ All notable changes to aispritejs are summarized here.
 ## Caveats
 
 - Atlas parser validates shape; compiler validates semantic graph correctness.
-- All reachable frames need textures in the Pixi adapter.
+- Every frame key in every declared animation needs a texture in the Pixi adapter, not just frames reachable from the graph's states.
 - Schema hardening can improve editor feedback but does not replace runtime validation.
 
 ---
