@@ -141,7 +141,10 @@ export function createPixiSpriteAnimator(
   const core = createSpriteAnimator(graph);
 
   // Swap the sprite's texture (and anchor) only when the active frame changes.
-  let boundKey = "";
+  // `undefined`, not `""`, is the sentinel: `""` is a legal frame key (the
+  // schema has no minLength), so using it here would skip the initial bind
+  // for a graph whose first frame key is the empty string.
+  let boundKey: string | undefined;
   function sync(): void {
     // A listener may dispose() (and destroy the sprite) during core.update() /
     // core.reset(); the sprite is no longer ours to write to after that.

@@ -237,6 +237,22 @@ describe("createPixiSpriteAnimator", () => {
       );
     }
   });
+
+  it("binds the initial frame even when its key is the empty string", () => {
+    const s = makeSprite();
+    const emptyKeyGraph: SpriteGraph = {
+      animations: { a: [""] },
+      inputs: {},
+      states: { a: { animation: "a", loop: true } },
+      transitions: [],
+      initial: "a",
+    };
+    const map = { "": fakeTexture({ x: 0.5, y: 0.5 }) };
+    const view = createPixiSpriteAnimator(s.asSprite(), emptyKeyGraph, map);
+    expect(view.activeFrameKey).toBe("");
+    expect(s.texture).toBe(map[""]);
+    expect(s.anchorSetCalls).toBe(1);
+  });
 });
 
 // A minimal graph with a non-looping "hit" state that completes after one
