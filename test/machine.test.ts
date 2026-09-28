@@ -219,6 +219,33 @@ describe("priority and declared-order tie-break", () => {
     a.update(0);
     expect(a.activeState).toBe("idle");
   });
+
+  it("a satisfied self-transition without a trigger does not outrank a lower-priority exit", () => {
+    // A Number/Boolean self-loop (to === from, no trigger consumed) is
+    // skipped in resolve() regardless of its priority, so it cannot hold the
+    // state against a lower-priority transition that actually leaves it —
+    // see the exception documented on TransitionDef.priority.
+    const a = createSpriteAnimator({
+      animations: { run: ["r0"], idle: ["i0"] },
+      inputs: {
+        speed: { type: "number", default: 5 },
+        tired: { type: "boolean", default: true },
+      },
+      states: { run: { animation: "run" }, idle: { animation: "idle" } },
+      transitions: [
+        {
+          from: "run",
+          to: "run",
+          when: [{ input: "speed", op: "GreaterThan", value: 0 }],
+          priority: 10,
+        },
+        { from: "run", to: "idle", when: [{ input: "tired", op: "Equals", value: true }], priority: 0 },
+      ],
+      initial: "run",
+    });
+    a.update(0);
+    expect(a.activeState).toBe("idle");
+  });
 });
 
 describe("frame timing", () => {
