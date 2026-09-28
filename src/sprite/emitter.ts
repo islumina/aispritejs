@@ -9,7 +9,7 @@ import type { ListenerOptions, Unsubscribe } from "./types.js";
  * A typed fan-out of one payload `P`. `emit` is allocation-free in the common
  * case; it snapshots listeners only when there is at least one, so a handler
  * that unsubscribes (or a `once` handler) cannot corrupt the in-flight
- * iteration.
+ * iteration. A listener removed during a dispatch is skipped for the rest of it.
  */
 export interface Signal<P> {
   on(handler: (payload: P) => void, options?: ListenerOptions): Unsubscribe;
@@ -65,8 +65,12 @@ export function createSignal<P>(): Signal<P> {
   function emit(payload: P): void {
     if (listeners.size === 0) return;
     // Snapshot so a handler that unsubscribes (including the once-wrapper)
-    // during dispatch does not perturb this pass.
-    for (const fn of [...listeners]) fn(payload);
+    // during dispatch does not perturb this pass, but re-check membership so a
+    // listener removed mid-dispatch (by a re-entrant emit that already fired a
+    // once-wrapper, by dispose(), or by an aborted signal) is not called.
+    for (const fn of [...listeners]) {
+      if (listeners.has(fn)) fn(payload);
+    }
   }
 
   function clear(): void {

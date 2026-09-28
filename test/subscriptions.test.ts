@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { type SpriteAnimator, createSpriteAnimator } from "../src/index.js";
+import { type SpriteAnimator, type SpriteGraph, createSpriteAnimator } from "../src/index.js";
 import { platformer } from "./fixtures/graphs.js";
 
 // Toggle idle⇄walk to emit a state change on demand.
@@ -10,6 +10,25 @@ function toWalk(a: SpriteAnimator): void {
 function toIdle(a: SpriteAnimator): void {
   a.setInput("speed", 0);
   a.update(0);
+}
+
+// a → b on `go`, then b → c unconditionally: one update(0) after `go` yields
+// a→b, and a re-entrant update(0) from a listener yields b→c mid-dispatch.
+function abc(): SpriteGraph {
+  return {
+    animations: { a: ["a0"], b: ["b0"], c: ["c0"] },
+    inputs: { go: { type: "boolean", default: false } },
+    states: {
+      a: { animation: "a", loop: true },
+      b: { animation: "b", loop: true },
+      c: { animation: "c", loop: true },
+    },
+    transitions: [
+      { from: "a", to: "b", when: [{ input: "go", op: "Equals", value: true }] },
+      { from: "b", to: "c" },
+    ],
+    initial: "a",
+  };
 }
 
 describe("onStateChange", () => {
@@ -241,5 +260,43 @@ describe("emitter edge cases", () => {
     expect(normalHandler).toHaveBeenCalledOnce();
     // onComplete handler also never called (no clip completion here, just verifying no crash).
     expect(abortedComplete).not.toHaveBeenCalled();
+  });
+
+  // A listener removed during an in-flight dispatch (by a `once` wrapper that
+  // already fired re-entrantly, by dispose(), or by an aborted signal) must not
+  // be called by the remainder of that dispatch.
+  it("a { once } listener fires once even when an earlier listener re-enters update()", () => {
+    const a = createSpriteAnimator(abc());
+    const rec = vi.fn();
+    a.onStateChange((to) => {
+      if (to === "b") a.update(0);
+    });
+    a.onStateChange(rec, { once: true });
+    a.setInput("go", true);
+    a.update(0);
+    expect(a.activeState).toBe("c");
+    expect(rec).toHaveBeenCalledExactlyOnceWith("c", "b");
+  });
+
+  it("a listener registered after one that calls dispose() is not invoked", () => {
+    const a = createSpriteAnimator(abc());
+    const rec = vi.fn();
+    a.onStateChange(() => a.dispose());
+    a.onStateChange(rec);
+    a.setInput("go", true);
+    a.update(0);
+    expect(a.disposed).toBe(true);
+    expect(rec).not.toHaveBeenCalled();
+  });
+
+  it("a listener whose { signal } aborts mid-dispatch is not invoked", () => {
+    const a = createSpriteAnimator(abc());
+    const ctrl = new AbortController();
+    const rec = vi.fn();
+    a.onStateChange(() => ctrl.abort());
+    a.onStateChange(rec, { signal: ctrl.signal });
+    a.setInput("go", true);
+    a.update(0);
+    expect(rec).not.toHaveBeenCalled();
   });
 });
