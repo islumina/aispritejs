@@ -10,6 +10,7 @@ import type { ListenerOptions, Unsubscribe } from "./types.js";
  * case; it snapshots listeners only when there is at least one, so a handler
  * that unsubscribes (or a `once` handler) cannot corrupt the in-flight
  * iteration. A listener removed during a dispatch is skipped for the rest of it.
+ * If listeners throw, the rest still run and the first error is rethrown.
  */
 export interface Signal<P> {
   on(handler: (payload: P) => void, options?: ListenerOptions): Unsubscribe;
@@ -68,9 +69,22 @@ export function createSignal<P>(): Signal<P> {
     // during dispatch does not perturb this pass, but re-check membership so a
     // listener removed mid-dispatch (by a re-entrant emit that already fired a
     // once-wrapper, by dispose(), or by an aborted signal) is not called.
+    // A throwing listener must not starve the rest: call every listener, then
+    // rethrow the first error once the pass is complete.
+    let failed = false;
+    let firstError: unknown;
     for (const fn of [...listeners]) {
-      if (listeners.has(fn)) fn(payload);
+      if (!listeners.has(fn)) continue;
+      try {
+        fn(payload);
+      } catch (err) {
+        if (!failed) {
+          failed = true;
+          firstError = err;
+        }
+      }
     }
+    if (failed) throw firstError;
   }
 
   function clear(): void {
