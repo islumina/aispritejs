@@ -20,14 +20,15 @@ export interface Signal<P> {
 }
 
 export function createSignal<P>(): Signal<P> {
-  const listeners = new Set<(payload: P) => void>();
-  // Parallel registry of cleanup functions so clear() can detach abort hooks
-  // as well as clearing the listener set (fixes SPR-R-01).
-  const cleanups = new Map<(payload: P) => void, Unsubscribe>();
+  // Each listener maps to its cleanup function so clear() can detach abort
+  // hooks as well as emptying the registry (fixes SPR-R-01).
+  const listeners = new Map<(payload: P) => void, Unsubscribe>();
 
   function on(handler: (payload: P) => void, options?: ListenerOptions): Unsubscribe {
+    const once = options?.once;
+    const sig = options?.signal;
     // An already-aborted signal means the listener is dead on arrival.
-    if (options?.signal?.aborted) return () => {};
+    if (sig?.aborted) return () => {};
 
     let detachAbort: (() => void) | undefined;
     // One teardown shared by the unsubscribe return, the once-wrapper, and the
@@ -36,24 +37,20 @@ export function createSignal<P>(): Signal<P> {
     // attached after it fires.
     const cleanup: Unsubscribe = () => {
       listeners.delete(wrapped);
-      cleanups.delete(wrapped);
       if (detachAbort) {
         detachAbort();
         detachAbort = undefined;
       }
     };
 
-    let wrapped: (payload: P) => void = handler;
-    if (options?.once) {
-      wrapped = (payload) => {
-        cleanup();
-        handler(payload);
-      };
-    }
-    listeners.add(wrapped);
-    cleanups.set(wrapped, cleanup);
+    // Always wrap, so every registration has its own identity in `listeners`
+    // even when the same handler is subscribed more than once.
+    const wrapped = (payload: P): void => {
+      if (once) cleanup();
+      handler(payload);
+    };
+    listeners.set(wrapped, cleanup);
 
-    const sig = options?.signal;
     if (sig) {
       const onAbort = () => cleanup();
       sig.addEventListener("abort", onAbort, { once: true });
@@ -71,30 +68,26 @@ export function createSignal<P>(): Signal<P> {
     // once-wrapper, by dispose(), or by an aborted signal) is not called.
     // A throwing listener must not starve the rest: call every listener, then
     // rethrow the first error once the pass is complete.
-    let failed = false;
-    let firstError: unknown;
-    for (const fn of [...listeners]) {
+    let failure: { error: unknown } | undefined;
+    for (const fn of [...listeners.keys()]) {
       if (!listeners.has(fn)) continue;
       try {
         fn(payload);
-      } catch (err) {
-        if (!failed) {
-          failed = true;
-          firstError = err;
-        }
+      } catch (error) {
+        failure ??= { error };
       }
     }
-    if (failed) throw firstError;
+    if (failure) throw failure.error;
   }
 
   function clear(): void {
     // Run each cleanup so abort hooks are detached from caller AbortSignals
     // (SPR-R-01). Snapshot the values first because cleanup() mutates the map.
     // A throwing cleanup (e.g. a misbehaving AbortSignal.removeEventListener)
-    // must not abort the iteration and must not prevent the sets from being
+    // must not abort the iteration and must not prevent the map from being
     // fully emptied — mirror the aifsmjs dispose() try/catch + finally pattern.
     try {
-      for (const cleanup of [...cleanups.values()]) {
+      for (const cleanup of [...listeners.values()]) {
         try {
           cleanup();
         } catch {
@@ -104,7 +97,6 @@ export function createSignal<P>(): Signal<P> {
     } finally {
       // Guarantee an empty post-condition even if the loop itself somehow throws.
       listeners.clear();
-      cleanups.clear();
     }
   }
 
