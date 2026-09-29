@@ -237,6 +237,33 @@ describe("createPixiSpriteAnimator", () => {
       );
     }
   });
+
+  it("does not stop() a playable sprite when the bind fails", () => {
+    const s = makeSprite();
+    let stopCalls = 0;
+    const playable = { ...s.asSprite(), stop: () => stopCalls++ } as unknown as Sprite;
+    const incompleteMap = { idle_0: fakeTexture({ x: 0.5, y: 0.86 }) };
+    expect(() => createPixiSpriteAnimator(playable, graph(), incompleteMap)).toThrow(
+      MissingTextureError,
+    );
+    expect(stopCalls).toBe(0);
+  });
+
+  it("binds the initial frame even when its key is the empty string", () => {
+    const s = makeSprite();
+    const emptyKeyGraph: SpriteGraph = {
+      animations: { a: [""] },
+      inputs: {},
+      states: { a: { animation: "a", loop: true } },
+      transitions: [],
+      initial: "a",
+    };
+    const map = { "": fakeTexture({ x: 0.5, y: 0.5 }) };
+    const view = createPixiSpriteAnimator(s.asSprite(), emptyKeyGraph, map);
+    expect(view.activeFrameKey).toBe("");
+    expect(s.texture).toBe(map[""]);
+    expect(s.anchorSetCalls).toBe(1);
+  });
 });
 
 // A minimal graph with a non-looping "hit" state that completes after one
@@ -317,5 +344,74 @@ describe("PixiSpriteAnimator — onComplete / onStateChange delegation", () => {
     view.fireTrigger("done");
     view.update(0);
     expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+describe("PixiSpriteAnimator — dispose() from inside a listener", () => {
+  // Pixi's Sprite.destroy() nulls `anchor`; emulate it on the probe so a
+  // post-dispose sync() would crash exactly as it does on a real sprite.
+  function destroy(s: SpriteProbe): void {
+    (s as unknown as { anchor: unknown }).anchor = null;
+  }
+
+  it("dispose() + destroy inside onStateChange during update() does not touch the sprite", () => {
+    const s = makeSprite();
+    const view = createPixiSpriteAnimator(s.asSprite(), graph(), textureMap());
+    view.onStateChange(() => {
+      view.dispose();
+      destroy(s);
+    });
+    view.setInput("speed", 1);
+    expect(() => view.update(0)).not.toThrow();
+    expect(view.disposed).toBe(true);
+    expect(s.textureWrites).toBe(1); // only the initial bind
+  });
+
+  it("a texture the caller sets after dispose() inside a listener is not overwritten", () => {
+    const s = makeSprite();
+    const userTex = fakeTexture();
+    const view = createPixiSpriteAnimator(s.asSprite(), graph(), textureMap());
+    view.onStateChange(() => {
+      view.dispose();
+      s.texture = userTex;
+    });
+    view.setInput("speed", 1);
+    view.update(0);
+    expect(s.texture).toBe(userTex);
+  });
+
+  it("dispose() + destroy inside onStateChange during reset() does not touch the sprite", () => {
+    const s = makeSprite();
+    const view = createPixiSpriteAnimator(s.asSprite(), graph(), textureMap());
+    view.setInput("speed", 1);
+    view.update(0); // → walk
+    const writes = s.textureWrites;
+    view.onStateChange(() => {
+      view.dispose();
+      destroy(s);
+    });
+    expect(() => view.reset()).not.toThrow(); // walk → idle emits
+    expect(s.textureWrites).toBe(writes);
+  });
+
+  it("dispose() + destroy inside onComplete of a one-shot FX does not throw", () => {
+    const s = makeSprite();
+    const fx: SpriteGraph = {
+      animations: { fx: ["x0", "x1"] },
+      frames: { x0: { duration: 40 }, x1: { duration: 40 } },
+      inputs: {},
+      states: { fx: { animation: "fx", loop: false } },
+      transitions: [],
+      initial: "fx",
+    };
+    const map = { x0: fakeTexture({ x: 0.5, y: 0.5 }), x1: fakeTexture({ x: 0.5, y: 0.5 }) };
+    const view = createPixiSpriteAnimator(s.asSprite(), fx, map);
+    view.onComplete(() => {
+      view.dispose();
+      destroy(s);
+    });
+    // This tick both changes the frame (x0 → x1) and completes the clip.
+    expect(() => view.update(80)).not.toThrow();
+    expect(s.texture).toBe(map.x0);
   });
 });

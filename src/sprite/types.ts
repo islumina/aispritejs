@@ -131,6 +131,12 @@ export interface TransitionDef {
    * ties break by declared order (earliest first). An integer; defaults to `0`.
    * (The JSON Schema constrains it to `integer`; TypeScript widens it to
    * `number`.)
+   *
+   * Exception: a satisfied Number/Boolean self-transition (`to === from`)
+   * that consumes no Trigger is skipped regardless of its priority, so it
+   * cannot hold the state against other exits — resolution keeps scanning
+   * lower-priority candidates instead of stopping there. A self-transition
+   * that consumes a Trigger is not exempt and still wins on priority.
    */
   readonly priority?: number;
 }

@@ -4,6 +4,13 @@ All notable changes to aispritejs are summarized here.
 
 ## [Unreleased]
 
+- Fixed: `emit()` re-checks listener membership on every call, so a `{ once }` listener can no longer fire twice when an earlier listener re-enters `update()`, and a listener removed mid-dispatch (by `dispose()` or an aborted `signal`) is no longer invoked.
+- Fixed: `onComplete` gives each subscription its own identity instead of sharing a registry entry keyed by the raw handler, so subscribing the same handler twice no longer collides.
+- Fixed: a throwing `onComplete`/`onStateChange` listener no longer wedges the state machine on its last frame — dispatch keeps calling the remaining listeners and `update()` still enters `onEnd`.
+- Fixed: the Pixi adapter no longer writes to the sprite after `dispose()` is called from inside a listener mid-`update()`/`reset()`.
+- Fixed: the Pixi adapter binds the initial frame correctly when its key is the empty string.
+- Fixed: the Pixi adapter only stops a playable sprite's own playback after a bind succeeds, so a failed call has no side effect on the caller's sprite.
+
 ## [0.5.9] - 2026-06-29
 
 - Fixed: a `reset()` / `dispose()` called from inside an `onComplete` handler is no longer clobbered by the state's `onEnd` auto-transition.

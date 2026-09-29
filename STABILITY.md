@@ -21,5 +21,5 @@
 ## Caveats
 
 - Atlas parser validates shape; compiler validates semantic graph correctness.
-- All reachable frames need textures in the Pixi adapter.
+- Every frame key in every declared animation needs a texture in the Pixi adapter, not just frames reachable from the graph's states.
 - Schema hardening can improve editor feedback but does not replace runtime validation.

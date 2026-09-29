@@ -82,10 +82,11 @@ const sprite = new Sprite(textures.explosion_0);
 const view = createPixiSpriteAnimator(sprite, graph, textures);
 
 // The `/pixi` adapter surfaces `activeState` / `activeFrameKey` (plus `update`,
-// `setInput`, `fireTrigger`, `reset`, `dispose`). The play-once completion is
-// observable here as the state returning `boom → idle` once the clip ends. (The
-// `onComplete` / `onStateChange` emitters live on the core `SpriteAnimator`; the
-// adapter intentionally keeps a minimal frame-syncing surface.)
+// `setInput`, `fireTrigger`, `reset`, `dispose`) and also delegates
+// `onComplete` / `onStateChange` from the core `SpriteAnimator`, so the
+// play-once completion below could instead be observed directly via
+// `view.onComplete(...)`; this example infers it from the state change
+// (`boom → idle`) to keep the walkthrough linear.
 function tick(label: string, dt: number): void {
   const before = view.activeState;
   view.update(dt);

@@ -119,13 +119,6 @@ export function createPixiSpriteAnimator(
   const map = toTextureMap(textures);
   const applyAnchor = options?.applyAnchor !== false;
 
-  // The adapter owns the sprite's texture/anchor. An AnimatedSprite (which
-  // extends Sprite, so the type permits it) drives its own texture from an
-  // internal ticker; if it is playing it would fight our frame swaps. Stop it.
-  // Structural check — pixi.js is type-only here, so no `instanceof`.
-  const playable = sprite as { stop?: () => void };
-  if (typeof playable.stop === "function") playable.stop();
-
   // Fail-fast: every frame key reachable from the graph must have a texture.
   // Use Object.hasOwn rather than `in` so that Object.prototype keys such as
   // "constructor" / "toString" are correctly rejected (mirroring APPLY-1 in
@@ -140,9 +133,24 @@ export function createPixiSpriteAnimator(
 
   const core = createSpriteAnimator(graph);
 
+  // The adapter owns the sprite's texture/anchor. An AnimatedSprite (which
+  // extends Sprite, so the type permits it) drives its own texture from an
+  // internal ticker; if it is playing it would fight our frame swaps. Stop it.
+  // Structural check — pixi.js is type-only here, so no `instanceof`. Done
+  // only after the checks above pass, so a failed bind has no side effect on
+  // the caller's sprite.
+  const playable = sprite as { stop?: () => void };
+  if (typeof playable.stop === "function") playable.stop();
+
   // Swap the sprite's texture (and anchor) only when the active frame changes.
-  let boundKey = "";
+  // `undefined`, not `""`, is the sentinel: `""` is a legal frame key (the
+  // schema has no minLength), so using it here would skip the initial bind
+  // for a graph whose first frame key is the empty string.
+  let boundKey: string | undefined;
   function sync(): void {
+    // A listener may dispose() (and destroy the sprite) during core.update() /
+    // core.reset(); the sprite is no longer ours to write to after that.
+    if (core.disposed) return;
     const key = core.activeFrameKey;
     if (key === boundKey) return;
     boundKey = key;

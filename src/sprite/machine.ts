@@ -136,13 +136,18 @@ export function createSpriteAnimator(graph: SpriteGraph): SpriteAnimator {
     // Fire onComplete once for a finished non-looping clip, then auto-transition.
     if (ended && !completed) {
       completed = true;
-      complete.emit(cs.name);
-      // An onComplete handler may have called reset() or dispose() during the
-      // emit above. Guard before entering onEnd: skip if the machine was
-      // disposed, if the current state was replaced (reset moved us away), or
-      // if the completed flag was cleared (reset restarted the same state).
-      if (cs.onEnd !== undefined && !disposed && current === cs && completed) {
-        enter(cs.onEnd, NO_TRIGGERS);
+      try {
+        complete.emit(cs.name);
+      } finally {
+        // An onComplete handler may have called reset() or dispose() during the
+        // emit above. Guard before entering onEnd: skip if the machine was
+        // disposed, if the current state was replaced (reset moved us away), or
+        // if the completed flag was cleared (reset restarted the same state).
+        // Runs in `finally` so a throwing handler cannot wedge the machine on
+        // its last frame (`completed` is already set, so no later tick would).
+        if (cs.onEnd !== undefined && !disposed && current === cs && completed) {
+          enter(cs.onEnd, NO_TRIGGERS);
+        }
       }
     }
   }

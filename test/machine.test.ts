@@ -219,6 +219,38 @@ describe("priority and declared-order tie-break", () => {
     a.update(0);
     expect(a.activeState).toBe("idle");
   });
+
+  it("a satisfied self-transition without a trigger does not outrank a lower-priority exit", () => {
+    // A Number/Boolean self-loop (to === from, no trigger consumed) is
+    // skipped in resolve() regardless of its priority, so it cannot hold the
+    // state against a lower-priority transition that actually leaves it —
+    // see the exception documented on TransitionDef.priority.
+    const a = createSpriteAnimator({
+      animations: { run: ["r0"], idle: ["i0"] },
+      inputs: {
+        speed: { type: "number", default: 5 },
+        tired: { type: "boolean", default: true },
+      },
+      states: { run: { animation: "run" }, idle: { animation: "idle" } },
+      transitions: [
+        {
+          from: "run",
+          to: "run",
+          when: [{ input: "speed", op: "GreaterThan", value: 0 }],
+          priority: 10,
+        },
+        {
+          from: "run",
+          to: "idle",
+          when: [{ input: "tired", op: "Equals", value: true }],
+          priority: 0,
+        },
+      ],
+      initial: "run",
+    });
+    a.update(0);
+    expect(a.activeState).toBe("idle");
+  });
 });
 
 describe("frame timing", () => {
@@ -599,5 +631,61 @@ describe("onComplete reset/dispose guard (C7)", () => {
     // onEnd "after" must NOT run after dispose
     expect(b.disposed).toBe(true);
     expect(b.activeState).toBe("action"); // unchanged after dispose
+  });
+});
+
+describe("throwing listeners", () => {
+  // A misbehaving listener must not starve the others or wedge onEnd: every
+  // listener still runs, the first error is rethrown, and the machine advances.
+  function aThenB() {
+    return createSpriteAnimator({
+      animations: { a: ["a0"], b: ["b0"] },
+      inputs: {},
+      states: { a: { animation: "a", onEnd: "b" }, b: { animation: "b", loop: true } },
+      transitions: [],
+      initial: "a",
+    });
+  }
+
+  it("later onComplete listeners still run when an earlier one throws", () => {
+    const a = aThenB();
+    a.onComplete(() => {
+      throw new Error("boom");
+    });
+    const rec = vi.fn();
+    a.onComplete(rec);
+    expect(() => a.update(100)).toThrow("boom");
+    expect(rec).toHaveBeenCalledExactlyOnceWith("a");
+  });
+
+  it("onEnd is still entered when an onComplete listener throws", () => {
+    const a = aThenB();
+    let first = true;
+    a.onComplete(() => {
+      if (first) {
+        first = false;
+        throw new Error("boom");
+      }
+    });
+    expect(() => a.update(100)).toThrow("boom");
+    expect(a.activeState).toBe("b");
+    a.update(100);
+    expect(a.activeState).toBe("b");
+  });
+
+  it("every onStateChange listener runs and the first error is rethrown", () => {
+    const a = createSpriteAnimator(platformer());
+    a.onStateChange(() => {
+      throw new Error("first");
+    });
+    a.onStateChange(() => {
+      throw new Error("second");
+    });
+    const rec = vi.fn();
+    a.onStateChange(rec);
+    a.setInput("speed", 1);
+    expect(() => a.update(0)).toThrow("first");
+    expect(rec).toHaveBeenCalledExactlyOnceWith("walk", "idle");
+    expect(a.activeState).toBe("walk");
   });
 });
