@@ -128,9 +128,10 @@ export interface TransitionDef {
   readonly when?: readonly TransitionCondition[];
   /**
    * Higher wins. Among satisfied transitions, the highest priority is taken;
-   * ties break by declared order (earliest first). An integer; defaults to `0`.
-   * (The JSON Schema constrains it to `integer`; TypeScript widens it to
-   * `number`.)
+   * ties break by declared order (earliest first). An integer (negative
+   * allowed); defaults to `0`. A non-integer (`1.5`, `NaN`, `Infinity`, a
+   * string) throws {@link InvalidGraphError} at load. (The JSON Schema
+   * constrains it to `integer`; TypeScript widens it to `number`.)
    *
    * Exception: a satisfied Number/Boolean self-transition (`to === from`)
    * that consumes no Trigger is skipped regardless of its priority, so it
@@ -246,19 +247,33 @@ export interface SpriteAnimator {
    */
   fireTrigger(name: string): void;
   /**
-   * Advance by `deltaMs` (clamped at `0`): evaluate transitions, recompute the
-   * active frame, and fire `onComplete` for a finished non-looping clip.
+   * Advance by `deltaMs`: evaluate transitions, recompute the active frame,
+   * and fire `onComplete` for a finished non-looping clip. A negative,
+   * non-finite, or non-number `deltaMs` is clamped to no progress, and so is a
+   * step that would overflow the playback clock to `Infinity`.
    * Deterministic — identical inputs and `dt` sequences yield identical frames.
-   * Throws {@link SpriteAnimatorDisposedError} after `dispose`.
+   *
+   * Run-to-completion: an `update()` / `reset()` called from inside an
+   * `onStateChange` / `onComplete` listener is queued and runs after the
+   * current call finishes (including its `onEnd` auto-transition), in call
+   * order; the nested call returns at once. A listener error drops the queued
+   * calls and propagates from the outermost call.
+   * Throws {@link SpriteAnimatorDisposedError} after `dispose` (also when
+   * called from a listener).
    */
   update(deltaMs: number): void;
   /**
    * Return to the initial state and reset every input to its default, without
    * releasing buffers. Fires `onStateChange` only if the state actually
-   * changed. Throws {@link SpriteAnimatorDisposedError} after `dispose`.
+   * changed. Queued like {@link SpriteAnimator.update} when called from a
+   * listener. Throws {@link SpriteAnimatorDisposedError} after `dispose`.
    */
   reset(): void;
-  /** Release all listeners. Idempotent; subsequent mutators throw. */
+  /**
+   * Release all listeners and drop any queued `update()` / `reset()` calls.
+   * Never queued: from a listener it stops the current update at once.
+   * Idempotent; subsequent mutators throw.
+   */
   dispose(): void;
   /**
    * Subscribe to state changes. Returns an unsubscribe.

@@ -287,12 +287,56 @@ describe("frame timing", () => {
     expect(a.activeFrameIndex).toBe(1);
   });
 
+  it("uses the default frame duration for a frame entry without a duration", () => {
+    // A PixiJS frame object carries `frame` / `anchor` etc.; only `duration` is read.
+    const a = createSpriteAnimator({
+      animations: { a: ["a0", "a1"] },
+      frames: { a0: { frame: { x: 0, y: 0, w: 8, h: 8 } } as never, a1: { duration: 10 } },
+      inputs: {},
+      states: { a: { animation: "a", loop: true } },
+      transitions: [],
+      defaultFrameDuration: 40,
+    });
+    a.update(39);
+    expect(a.activeFrameKey).toBe("a0");
+    a.update(1);
+    expect(a.activeFrameKey).toBe("a1");
+  });
+
   it("clamps negative delta to zero", () => {
     const a = createSpriteAnimator(platformer());
     a.setInput("speed", 1);
     a.update(0);
     a.update(-1000);
     expect(a.activeFrameIndex).toBe(0);
+  });
+
+  it("an update whose step would overflow elapsed makes no progress", () => {
+    // Before 0.6.0 elapsed became Infinity, `Infinity % total` was NaN, and a
+    // looping clip froze on frame 0 for good.
+    const a = createSpriteAnimator(platformer());
+    a.setInput("speed", 1);
+    a.update(0); // → walk: 4 × 100 ms, looping
+    a.update(Number.MAX_VALUE); // finite: MAX_VALUE % 400 = 368 → frame 3
+    expect(a.activeFrameIndex).toBe(3);
+    a.update(Number.MAX_VALUE); // MAX_VALUE + MAX_VALUE overflows → dropped
+    expect(Number.isInteger(a.activeFrameIndex)).toBe(true);
+    expect(a.activeFrameIndex).toBe(3);
+    expect(a.activeFrameKey).toBe("walk_3");
+  });
+
+  it("a finite dt whose speed-scaled step overflows is clamped to no progress", () => {
+    const a = createSpriteAnimator({
+      animations: { spin: ["s0", "s1"] },
+      frames: { s0: { duration: 100 }, s1: { duration: 100 } },
+      inputs: {},
+      states: { spin: { animation: "spin", loop: true, speed: 1000 } },
+      transitions: [],
+    });
+    a.update(Number.MAX_VALUE / 10); // × 1000 overflows to Infinity → dropped
+    expect(a.activeFrameIndex).toBe(0);
+    a.update(0.1); // 0.1 × 1000 = 100 ms: later updates still advance
+    expect(a.activeFrameKey).toBe("s1");
   });
 
   it("clamps non-finite dt (Infinity / NaN) to zero so elapsed is not poisoned", () => {
@@ -542,48 +586,18 @@ describe("onEnd chain", () => {
   });
 });
 
-// C7: onComplete handler calls reset() — onEnd must NOT overwrite it
-// A non-looping state with onEnd:"idle" whose onComplete handler calls reset().
-// After complete.emit() fires the handler, the machine is back in the initial
-// state. The subsequent enter(onEnd) must be skipped; the animator must stay in
-// the initial state, not jump to onEnd.
+// C7 (0.6.0 run-to-completion): a reset() / update() called from onComplete is
+// queued, so the state's onEnd auto-transition runs first and the queued call
+// runs after it. A reset() therefore ends in the initial state after two state
+// changes; dispose() still stops the update at once.
 describe("onComplete reset/dispose guard (C7)", () => {
-  function makeGraph() {
+  function actionGraph() {
     return {
-      animations: {
-        initial: ["i0"],
-        action: ["a0"],
-        after: ["af0"],
-      },
-      frames: {
-        i0: { duration: 100 },
-        a0: { duration: 100 },
-        af0: { duration: 100 },
-      },
-      inputs: {},
-      states: {
-        initial: { animation: "initial", loop: true },
-        action: { animation: "action", loop: false, onEnd: "after" },
-        after: { animation: "after", loop: true },
-      },
-      transitions: [],
-      initial: "initial",
-    } as const;
-  }
-
-  it("reset() inside onComplete keeps the machine in the initial state (not onEnd)", () => {
-    const a = createSpriteAnimator(makeGraph());
-    // Manually enter "action" by rebuilding with action as initial — or just
-    // use a graph where action is the declared initial so update() triggers it.
-    const b = createSpriteAnimator({
-      animations: {
-        action: ["a0"],
-        after: ["af0"],
-        home: ["h0"],
-      },
+      animations: { action: ["a0"], after: ["af0", "af1"], home: ["h0"] },
       frames: {
         a0: { duration: 100 },
-        af0: { duration: 100 },
+        af0: { duration: 50 },
+        af1: { duration: 50 },
         h0: { duration: 100 },
       },
       inputs: {},
@@ -594,13 +608,32 @@ describe("onComplete reset/dispose guard (C7)", () => {
       },
       transitions: [],
       initial: "action",
-    });
+    } as const;
+  }
 
-    b.onComplete(() => b.reset());
-    b.update(100); // action completes → onComplete fires reset() → should stay in "action" (initial)
-    // onEnd "after" must NOT overwrite the reset
-    expect(b.activeState).toBe("action"); // initial state of this graph
+  it("reset() inside onComplete runs after onEnd and ends in the initial state", () => {
+    const b = createSpriteAnimator(actionGraph());
+    const changes: string[] = [];
+    let stateInHandler = "";
+    b.onStateChange((to, from) => changes.push(`${from}->${to}`));
+    b.onComplete(() => {
+      b.reset(); // queued
+      stateInHandler = b.activeState;
+    });
+    b.update(100); // action completes → onEnd "after" → queued reset() → "action"
+    expect(stateInHandler).toBe("action"); // reset had not run yet
+    expect(changes).toEqual(["action->after", "after->action"]);
+    expect(b.activeState).toBe("action");
+    expect(b.activeFrameIndex).toBe(0);
     expect(b.disposed).toBe(false);
+  });
+
+  it("update() inside onComplete runs after the onEnd auto-transition", () => {
+    const b = createSpriteAnimator(actionGraph());
+    b.onComplete(() => b.update(50)); // advances the onEnd target, not "action"
+    b.update(100);
+    expect(b.activeState).toBe("after");
+    expect(b.activeFrameKey).toBe("af1"); // 50 ms into "after"
   });
 
   it("dispose() inside onComplete leaves the machine disposed and activeState unchanged", () => {

@@ -11,26 +11,28 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
 
 const failures = [];
+let entryCount = 0;
 
-async function checkTarget(subpath, condition, relPath) {
-  const abs = resolve(root, relPath);
-  try {
-    await access(abs);
-  } catch {
-    failures.push(`${subpath} → ${condition} → ${relPath} (missing)`);
+// Condition entries may nest (e.g. "import": { "types": ..., "default": ... }),
+// so walk each subpath's conditions recursively rather than assuming one level.
+async function walk(subpath, node, trail) {
+  if (typeof node === "string") {
+    entryCount++;
+    const abs = resolve(root, node);
+    try {
+      await access(abs);
+    } catch {
+      failures.push(`${subpath} → ${trail.join(" → ")} (${node}) (missing)`);
+    }
+    return;
+  }
+  for (const [condition, value] of Object.entries(node)) {
+    await walk(subpath, value, [...trail, condition]);
   }
 }
 
-for (const [subpath, target] of Object.entries(pkg.exports)) {
-  // A subpath maps either to a conditions object ({ types, import, require })
-  // or directly to a file string (e.g. a shipped JSON schema).
-  if (typeof target === "string") {
-    await checkTarget(subpath, "default", target);
-  } else {
-    for (const [condition, relPath] of Object.entries(target)) {
-      await checkTarget(subpath, condition, relPath);
-    }
-  }
+for (const [subpath, conditions] of Object.entries(pkg.exports)) {
+  await walk(subpath, conditions, []);
 }
 
 if (failures.length > 0) {
@@ -39,4 +41,6 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`verify-exports: all ${Object.keys(pkg.exports).length} subpaths resolved.`);
+console.log(
+  `verify-exports: all ${entryCount} condition entries across ${Object.keys(pkg.exports).length} subpaths resolved.`,
+);

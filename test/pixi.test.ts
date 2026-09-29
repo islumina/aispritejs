@@ -1,6 +1,6 @@
 import type { Sprite, Spritesheet, Texture } from "pixi.js";
 import { describe, expect, it, vi } from "vitest";
-import type { SpriteGraph } from "../src/index.js";
+import { InvalidGraphError, type SpriteGraph } from "../src/index.js";
 import { MissingTextureError, createPixiSpriteAnimator } from "../src/pixi/index.js";
 
 // The adapter imports pixi.js type-only, so structural doubles drive it without
@@ -171,6 +171,23 @@ describe("createPixiSpriteAnimator", () => {
     expect(s.texture).toBe(map.walk_0);
   });
 
+  it("binds a frame named `textures` when the map is wrapped as { textures: map }", () => {
+    // A bare map with an object under "textures" reads as a Spritesheet (the
+    // documented workaround is to pass the sheet, or wrap the map).
+    const s = makeSprite();
+    const g: SpriteGraph = {
+      animations: { a: ["textures", "idle_0"] },
+      inputs: {},
+      states: { a: { animation: "a", loop: true } },
+      transitions: [],
+    };
+    const map = { textures: fakeTexture(), idle_0: fakeTexture() };
+    expect(() => createPixiSpriteAnimator(s.asSprite(), g, map)).toThrow(MissingTextureError);
+    const view = createPixiSpriteAnimator(s.asSprite(), g, { textures: map } as never);
+    expect(view.activeFrameKey).toBe("textures");
+    expect(s.texture).toBe(map.textures);
+  });
+
   it("stops a playing AnimatedSprite so its ticker cannot fight the texture swap", () => {
     const s = makeSprite();
     let stopped = 0;
@@ -236,6 +253,48 @@ describe("createPixiSpriteAnimator", () => {
         expect.arrayContaining(["constructor", "toString"]),
       );
     }
+  });
+
+  // P3: an own entry holding null / undefined would blank the sprite (or crash
+  // the anchor read) mid-update; it counts as missing at construction.
+  it.each([undefined, null])("throws MissingTextureError for an own %s texture entry", (tex) => {
+    const s = makeSprite();
+    const map = { ...textureMap(), idle_0: tex } as unknown as Record<string, Texture>;
+    let thrown: unknown;
+    try {
+      createPixiSpriteAnimator(s.asSprite(), graph(), map);
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(MissingTextureError);
+    expect((thrown as MissingTextureError).keys).toEqual(["idle_0"]);
+    expect(s.textureWrites).toBe(0);
+  });
+
+  it.each([undefined, null])("reports every frame key missing when textures is %s", (tex) => {
+    const s = makeSprite();
+    let thrown: unknown;
+    try {
+      createPixiSpriteAnimator(s.asSprite(), graph(), tex as unknown as Record<string, Texture>);
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(MissingTextureError);
+    expect((thrown as MissingTextureError).keys).toEqual(["idle_0", "idle_1", "walk_0", "walk_1"]);
+  });
+
+  it("rejects a malformed graph with InvalidGraphError before scanning textures", () => {
+    const s = makeSprite();
+    for (const bad of [
+      null,
+      { ...graph(), animations: undefined },
+      { ...graph(), animations: { idle: 5 } },
+    ]) {
+      expect(() =>
+        createPixiSpriteAnimator(s.asSprite(), bad as unknown as SpriteGraph, textureMap()),
+      ).toThrow(InvalidGraphError);
+    }
+    expect(s.textureWrites).toBe(0);
   });
 
   it("does not stop() a playable sprite when the bind fails", () => {
@@ -413,5 +472,55 @@ describe("PixiSpriteAnimator — dispose() from inside a listener", () => {
     // This tick both changes the frame (x0 → x1) and completes the clip.
     expect(() => view.update(80)).not.toThrow();
     expect(s.texture).toBe(map.x0);
+  });
+});
+
+describe("PixiSpriteAnimator — a throwing listener", () => {
+  it("update() still syncs the sprite to the core's new frame before rethrowing", () => {
+    const s = makeSprite();
+    const map = textureMap();
+    const view = createPixiSpriteAnimator(s.asSprite(), graph(), map);
+    view.onStateChange(() => {
+      throw new Error("boom");
+    });
+    view.setInput("speed", 1);
+    expect(() => view.update(0)).toThrow("boom");
+    expect(view.activeFrameKey).toBe("walk_0");
+    expect(s.texture).toBe(map.walk_0); // not left on idle_0
+  });
+
+  it("reset() still syncs the sprite before rethrowing", () => {
+    const s = makeSprite();
+    const map = textureMap();
+    const view = createPixiSpriteAnimator(s.asSprite(), graph(), map);
+    view.setInput("speed", 1);
+    view.update(0); // → walk
+    view.onStateChange(() => {
+      throw new Error("boom");
+    });
+    expect(() => view.reset()).toThrow("boom");
+    expect(s.texture).toBe(map.idle_0);
+  });
+
+  it("a nested view.update() from a listener is queued and the final frame is bound", () => {
+    const s = makeSprite();
+    const map = textureMap();
+    const g: SpriteGraph = {
+      ...graph(),
+      transitions: [
+        { from: "idle", to: "walk", when: [{ input: "speed", op: "GreaterThan", value: 0 }] },
+        { from: "walk", to: "idle", when: [{ input: "speed", op: "Equals", value: 0 }] },
+      ],
+    };
+    const view = createPixiSpriteAnimator(s.asSprite(), g, map);
+    view.onStateChange((to) => {
+      if (to !== "walk") return;
+      view.setInput("speed", 0);
+      view.update(0); // queued in the core: walk → idle after this listener
+    });
+    view.setInput("speed", 1);
+    view.update(0);
+    expect(view.activeState).toBe("idle");
+    expect(s.texture).toBe(map.idle_0);
   });
 });

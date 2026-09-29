@@ -81,12 +81,12 @@ export function createInputStore(inputs: Readonly<Record<string, InputDef>>): In
     triggers.set(name, true);
   }
 
+  // `!` is sound: every declared input is seeded at construction and the
+  // compiler validates that conditions only read declared inputs of the
+  // matching kind, so these reads always hit a present entry.
   return {
     setInput,
     fireTrigger,
-    // `!` is sound: every declared input is seeded at construction and the
-    // compiler validates that conditions only read declared inputs of the
-    // matching kind, so these reads always hit a present entry.
     readNumber: (name) => numbers.get(name)!,
     readBoolean: (name) => booleans.get(name)!,
     isPending: (name) => triggers.get(name) === true,

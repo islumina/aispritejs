@@ -1,13 +1,14 @@
-// aispritejs — graph compiler. Validates every cross-reference the type system
-// cannot (animation existence, transition targets, operator/kind compatibility,
-// positive durations) and normalises the graph into a precomputed runtime form:
-// per-state cumulative frame timings and per-state transition candidate lists
-// sorted by (priority desc, declared-order asc). All allocation happens here,
-// once, so `update()` stays allocation-free.
+// aispritejs — graph compiler. Validates the graph's shape and every
+// cross-reference the type system cannot (identifier types, animation
+// existence, transition targets, operator/kind compatibility, integer
+// priorities, positive durations) and normalises the graph into a precomputed
+// runtime form: per-state cumulative frame timings and per-state transition
+// candidate lists sorted by (priority desc, declared-order asc). All allocation
+// happens here, once, so `update()` stays allocation-free.
 
 import { InvalidGraphError } from "./errors.js";
 import type { InputStore } from "./inputs.js";
-import type { SpriteGraph } from "./types.js";
+import type { InputDef, SpriteGraph, StateDef, TransitionCondition } from "./types.js";
 
 /** A compiled condition: a closure that reads the live store and returns a boolean. */
 export type ConditionFn = (store: InputStore) => boolean;
@@ -26,7 +27,6 @@ export interface CompiledTransition {
 
 export interface CompiledState {
   readonly name: string;
-  readonly animation: string;
   readonly loop: boolean;
   readonly speed: number;
   readonly onEnd: string | undefined;
@@ -53,7 +53,47 @@ export function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+/**
+ * Throw {@link InvalidGraphError} naming `what` unless `v` is a string. Runs
+ * before every `Object.hasOwn` lookup, which would otherwise stringify a number
+ * or an array and resolve it to a declared name.
+ */
+function assertString(v: unknown, what: string): void {
+  if (typeof v !== "string") {
+    throw new InvalidGraphError(`${what} must be a string, got ${typeof v}`);
+  }
+}
+
+/** Throw {@link InvalidGraphError} unless `v` is a finite number in `(0, max]`. */
+function assertPositive(v: number, what: string, max: number, unit: string): void {
+  if (!Number.isFinite(v) || v <= 0) {
+    throw new InvalidGraphError(`${what} must be a finite number > 0, got ${v}`);
+  }
+  if (v > max) throw new InvalidGraphError(`${what} must be ≤ ${max}${unit}, got ${v}`);
+}
+
+/**
+ * @internal Structural guard: the graph and its containers have the shapes the
+ * compiler (and the Pixi adapter's texture scan) iterate, so misuse from
+ * untyped callers is an {@link InvalidGraphError}, never a bare `TypeError`.
+ */
+export function assertGraphShape(graph: SpriteGraph): void {
+  if (!isObject(graph)) throw new InvalidGraphError("graph must be an object");
+  for (const key of ["animations", "inputs", "states"] as const) {
+    if (!isObject(graph[key])) throw new InvalidGraphError(`${key} must be an object`);
+  }
+  if (!Array.isArray(graph.transitions)) {
+    throw new InvalidGraphError("transitions must be an array");
+  }
+  for (const [name, list] of Object.entries(graph.animations)) {
+    if (!Array.isArray(list)) {
+      throw new InvalidGraphError(`animation "${name}" must be an array of frame keys`);
+    }
+  }
+}
+
 export function compileGraph(graph: SpriteGraph): CompiledGraph {
+  assertGraphShape(graph);
   if (Object.keys(graph.animations).length === 0) {
     throw new InvalidGraphError("animations must declare at least one animation");
   }
@@ -67,62 +107,41 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
   // still carry a bad `type` or a `default` whose typeof mismatches the kind.
   // Validate so a bad input fails here, not silently in the store.
   for (const [name, def] of Object.entries(graph.inputs)) {
-    if (def.type !== "number" && def.type !== "boolean" && def.type !== "trigger") {
-      throw new InvalidGraphError(
-        `input "${name}" has unknown type "${(def as { type: string }).type}"`,
-      );
+    // `?.`: a null / non-object entry from untyped JSON reports an unknown type.
+    const type = (def as InputDef | null)?.type;
+    if (type !== "number" && type !== "boolean" && type !== "trigger") {
+      throw new InvalidGraphError(`input "${name}" has unknown type "${type}"`);
     }
     // Validate `default` typeof matches the declared kind (schema constraint in
     // code). A wrong-typed default would be adopted unvalidated and silently
     // misevaluate conditions (e.g. "5" === 5 is false for Equals).
-    const rawDef = def as { type: string; default?: unknown };
-    if (rawDef.default !== undefined) {
-      if (def.type === "number" && typeof rawDef.default !== "number") {
-        throw new InvalidGraphError(
-          `input "${name}" default must be a number (declared type "number"), got ${typeof rawDef.default}`,
-        );
-      }
-      if (def.type === "boolean" && typeof rawDef.default !== "boolean") {
-        throw new InvalidGraphError(
-          `input "${name}" default must be a boolean (declared type "boolean"), got ${typeof rawDef.default}`,
-        );
-      }
+    const d = (def as { default?: unknown }).default;
+    if (
+      d !== undefined &&
+      ((type === "number" && typeof d !== "number") ||
+        (type === "boolean" && typeof d !== "boolean"))
+    ) {
+      throw new InvalidGraphError(
+        `input "${name}" default must be a ${type} (declared type "${type}"), got ${typeof d}`,
+      );
     }
   }
 
   const defaultDuration = graph.defaultFrameDuration ?? DEFAULT_FRAME_DURATION;
-  if (!Number.isFinite(defaultDuration) || defaultDuration <= 0) {
-    throw new InvalidGraphError(
-      `defaultFrameDuration must be a finite number > 0, got ${defaultDuration}`,
-    );
-  }
-  if (defaultDuration > MAX_DURATION) {
-    throw new InvalidGraphError(
-      `defaultFrameDuration must be ≤ ${MAX_DURATION} ms, got ${defaultDuration}`,
-    );
-  }
+  assertPositive(defaultDuration, "defaultFrameDuration", MAX_DURATION, " ms");
 
   if (graph.frames) {
     for (const [key, timing] of Object.entries(graph.frames)) {
       if (!isObject(timing as unknown)) {
         throw new InvalidGraphError(`frame "${key}" timing must be an object`);
       }
-      if (
-        timing.duration !== undefined &&
-        (!Number.isFinite(timing.duration) || timing.duration <= 0)
-      ) {
-        throw new InvalidGraphError(
-          `frame "${key}" duration must be a finite number > 0, got ${timing.duration}`,
-        );
-      }
-      if (timing.duration !== undefined && timing.duration > MAX_DURATION) {
-        throw new InvalidGraphError(
-          `frame "${key}" duration must be ≤ ${MAX_DURATION} ms, got ${timing.duration}`,
-        );
+      if (timing.duration !== undefined) {
+        assertPositive(timing.duration, `frame "${key}" duration`, MAX_DURATION, " ms");
       }
     }
   }
 
+  if (graph.initial !== undefined) assertString(graph.initial, "initial");
   const initial = graph.initial ?? stateEntries[0]![0];
   if (!Object.hasOwn(graph.states, initial)) {
     throw new InvalidGraphError(`initial state "${initial}" is not declared`);
@@ -131,6 +150,9 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
   // --- compile states -----------------------------------------------------
   const states = new Map<string, CompiledState>();
   for (const [name, st] of stateEntries) {
+    // `?.`: a null / non-object state entry fails the animation-type check.
+    assertString((st as StateDef | null)?.animation, `state "${name}" animation`);
+    if (st.onEnd !== undefined) assertString(st.onEnd, `state "${name}" onEnd`);
     const frameKeys = graph.animations[st.animation];
     if (frameKeys === undefined || !Object.hasOwn(graph.animations, st.animation)) {
       throw new InvalidGraphError(`state "${name}" references unknown animation "${st.animation}"`);
@@ -139,14 +161,7 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
       throw new InvalidGraphError(`animation "${st.animation}" (state "${name}") has no frames`);
     }
     const speed = st.speed ?? 1;
-    if (!Number.isFinite(speed) || speed <= 0) {
-      throw new InvalidGraphError(
-        `state "${name}" speed must be a finite number > 0, got ${speed}`,
-      );
-    }
-    if (speed > MAX_SPEED) {
-      throw new InvalidGraphError(`state "${name}" speed must be ≤ ${MAX_SPEED}, got ${speed}`);
-    }
+    assertPositive(speed, `state "${name}" speed`, MAX_SPEED, "");
     const loop = st.loop === true;
     if (loop && st.onEnd !== undefined) {
       throw new InvalidGraphError(
@@ -164,23 +179,14 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
       cumulative.push(running);
     }
 
-    states.set(name, {
-      name,
-      animation: st.animation,
-      loop,
-      speed,
-      onEnd: st.onEnd,
-      // `frameKeys` is aliased directly from `graph.animations[st.animation]`
-      // without copying. The declared `readonly` typing makes mutation a
-      // compile-time error for typed callers, but callers holding the raw JSON
-      // object can mutate it at runtime. Callers must NOT mutate the atlas
-      // `animations` arrays while a machine built from that graph is alive;
-      // doing so desyncs `frameKeys` from the precomputed `cumulative` timings
-      // and can cause `frameKeys[activeFrameIndex]` to yield `undefined`.
-      frameKeys,
-      cumulative,
-      total: running,
-    });
+    // `frameKeys` is aliased directly from `graph.animations[st.animation]`
+    // without copying. The declared `readonly` typing makes mutation a
+    // compile-time error for typed callers, but callers holding the raw JSON
+    // object can mutate it at runtime. Callers must NOT mutate the atlas
+    // `animations` arrays while a machine built from that graph is alive;
+    // doing so desyncs `frameKeys` from the precomputed `cumulative` timings
+    // and can cause `frameKeys[activeFrameIndex]` to yield `undefined`.
+    states.set(name, { name, loop, speed, onEnd: st.onEnd, frameKeys, cumulative, total: running });
   }
 
   // --- compile transitions ------------------------------------------------
@@ -192,6 +198,13 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
     if (t.when !== undefined && !Array.isArray(t.when)) {
       throw new InvalidGraphError(`transition #${order} "when" must be an array`);
     }
+    assertString(t.from, `transition #${order} "from"`);
+    assertString(t.to, `transition #${order} "to"`);
+    if (t.priority !== undefined && !Number.isInteger(t.priority)) {
+      throw new InvalidGraphError(
+        `transition #${order} priority must be an integer, got ${t.priority}`,
+      );
+    }
     if (t.from !== "*" && !Object.hasOwn(graph.states, t.from)) {
       throw new InvalidGraphError(`transition #${order} from "${t.from}" is not a declared state`);
     }
@@ -202,6 +215,12 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
     const conditions: ConditionFn[] = [];
     const triggers: string[] = [];
     for (const c of t.when ?? []) {
+      // `?.`: a null / non-object condition fails the input-type check.
+      assertString(
+        (c as TransitionCondition | null)?.input,
+        `transition #${order} condition "input"`,
+      );
+      assertString(c.op, `transition #${order} condition "op"`);
       const def = graph.inputs[c.input];
       if (def === undefined || !Object.hasOwn(graph.inputs, c.input)) {
         throw new InvalidGraphError(

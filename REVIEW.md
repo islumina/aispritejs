@@ -1,6 +1,6 @@
 # aispritejs Review
 
-Current review state after the 2026-09-28 ai*js pass.
+Current review state after the 2026-09-29 ai*js 0.6.0 pass.
 
 ## Current Known Issues / Backlog
 
@@ -8,12 +8,9 @@ Current review state after the 2026-09-28 ai*js pass.
 | --- | --- | --- | --- |
 | P3 | Parser/compiler layering docs | Documented | Parser handles structural shape, compiler handles semantic graph correctness. Keep this distinction in errors/tests. |
 | P3 | Optional Pixi peer clarity | Documented | `pixi.js` is optional and type-only for `/pixi`; root remains renderer-free. |
-| P1 | Non-string graph identifiers (`src/sprite/compile.ts`) | Open | `compileGraph` checks `initial`/`animation`/`onEnd`/`from`/`to`/condition `input` only via `Object.hasOwn`, which stringifies numbers and arrays; a non-string identifier can permanently brick the animator or silently mis-evaluate conditions. Fix: require `typeof x === "string"` before each check and throw `InvalidGraphError` naming the field. |
-| P3 | Own-but-nullish texture entries (`src/pixi/animator.ts`) | Open | The texture-map check only tests `Object.hasOwn`, so an own `undefined`/`null` value passes as present and later blanks the sprite or throws mid-`update()`. Fix: also treat a nullish map value as missing. |
-| P3 | Non-numeric transition priority (`src/sprite/compile.ts`) | Open | `priority` is never checked to be a finite number; a `NaN` or string priority makes the sort comparator inconsistent and can flip which well-formed transition wins. Fix: reject a non-finite/non-integer `priority` in `compileGraph`. |
-| P3 | Re-entrant listener dispatch (`src/sprite/emitter.ts`) | Open | `emit()` delivers a nested transition (from a listener calling `update()`/`reset()` re-entrantly) before the outer dispatch finishes, so later listeners can see a stale `to`. Fix: queue emissions during dispatch and flush in order, or detect and reject re-entrancy — needs a documented semantics decision. |
-| P3 | Unchecked `control` block (`src/atlas/parse.ts`) | Open | `parseAtlas` adopts an explicit `control` argument without any structural checks, so a malformed control block surfaces as a bare `TypeError` instead of `InvalidAtlasError`, unlike the same block embedded in the atlas. Fix: run the existing inputs/states/transitions/`when` shape checks on `control` too. |
-| P3 | Huge finite `dt` overflow (`src/sprite/machine.ts`) | Open | A finite but very large `dt` can still overflow `elapsed` to `Infinity` (distinct from the intentional gradual accumulation), so `elapsed % total` becomes `NaN` and a looping clip freezes on frame 0. Fix: commit `elapsed + step` only when it stays finite. Deferred: any of the candidate one-line fixes pushes the `atlas` entry's gzip closure over its budget (already at 100%); needs an offsetting size refactor first. |
+| P3 | Argument validation outside the graph/atlas (`src/sprite/emitter.ts`, `src/pixi/animator.ts`) | Deferred | `onStateChange`/`onComplete` accept a non-function handler (it throws a bare `TypeError` at the next notification, rethrown from `update()`), a `signal` that is not an `AbortSignal` throws a bare `TypeError` at subscribe, and `createPixiSpriteAnimator` with a missing `sprite` throws a bare `TypeError` after the texture check. Deferred: no existing error class fits (`InvalidGraphError` describes the graph, `MissingTextureError` the textures), and adding an argument error class is a 1.0 API-surface decision for the maintainer; STABILITY.md documents the boundary. |
+| — | Frame key named `textures` | Documented | Spritesheet detection is structural (`pixi.js` is type-only), so a plain texture map with an object under `textures` is read as a Spritesheet. Workaround in README Sharp Edges and the `textures` JSDoc: pass the Spritesheet or `{ textures: map }`. |
+| — | Size headroom | Note | 4,400 / 4,400 B (`index`), 5,135 / 5,200 B (`pixi`), 5,486 / 5,500 B (`atlas`) after this pass; the pixi and atlas budgets were raised for 0.6.0 with an itemised comment in `scripts/check-size.mjs`. |
 
 ## Fixed Summary
 
@@ -32,6 +29,16 @@ Current review state after the 2026-09-28 ai*js pass.
 - Corrected the "reachable frame keys" claim in README/README_ZHTW/STABILITY: the Pixi adapter requires a texture for every frame of every declared animation, not just frames a state references.
 - Replaced the stale README_ZHTW schema backlog line (`minProperties` / finite maxima) with the shipped constraints.
 - Corrected the example 02 comment claiming the Pixi adapter hides `onComplete`/`onStateChange`; it delegates both.
+- 0.6.0: `update()`/`reset()` are run-to-completion with a FIFO mailbox; a call from a listener runs after the current call (including its `onEnd`), `dispose()` clears the queue, and a throw drops it (re-entrant listener dispatch).
+- 0.6.0: `compileGraph` rejects a non-string `initial`, state `animation`/`onEnd`, transition `from`/`to`, or condition `input`/`op` with `InvalidGraphError` naming the field, before any `Object.hasOwn` lookup; validation tests pin each field against the schema's string type (P1 non-string identifiers).
+- 0.6.0: `compileGraph` rejects a non-integer transition `priority` (non-numeric priority).
+- 0.6.0: the Pixi adapter treats an own `null`/`undefined` texture entry, and a nullish texture map, as missing (nullish texture entries).
+- 0.6.0: `parseAtlas` runs the embedded block's structural checks on an explicit `control` and rejects a wrong-typed `control.initial`/`control.defaultFrameDuration` (unchecked control block).
+- 0.6.0: `update()` drops a step that would overflow `elapsed` to `Infinity` (huge finite `dt` overflow); the atlas budget blocker was cleared by trimming plus the 0.6.0 budget raise.
+- 0.6.0: the Pixi adapter syncs the sprite in `finally`, so a throwing listener no longer leaves it on a frame the core has left.
+- 0.6.0 family rules: `createSpriteAnimator`/`createPixiSpriteAnimator` report a malformed graph shape with `InvalidGraphError` instead of a bare `TypeError`; `package.json` `exports` nest `types` under `import`/`require` with `.d.cts` types, checked by the recursive `verify-exports` and `test/exports.test.ts`.
+- 0.6.0 docs: corrected the Spritesheet-detection workaround for a frame named `textures` (the old `spritesheet.textures` advice hit the same misdetection).
+- 0.6.0 size: the dead onEnd guard clauses and `CompiledState.animation` field, the duplicated input-default and duration/speed gates, and comments esbuild kept inside object literals were removed; `reset()` reuses `enter()`.
 
 ## Verification Baseline
 

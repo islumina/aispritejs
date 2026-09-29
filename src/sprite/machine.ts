@@ -7,8 +7,13 @@
 // plus the input store; transitions are resolved over precomputed, deterministically
 // ordered candidate lists. Identical input + dt sequences therefore yield identical
 // frame sequences. The no-transition path allocates nothing.
+//
+// Run-to-completion: `update()` / `reset()` own the machine's state, so a call
+// made while one is already dispatching (from an `onStateChange` / `onComplete`
+// listener) is queued in a FIFO mailbox and runs after the current call's last
+// notification (ai*js family rule for state-owning dispatchers).
 
-import { type CompiledState, compileGraph } from "./compile.js";
+import { type CompiledState, type CompiledTransition, compileGraph } from "./compile.js";
 import { createSignal } from "./emitter.js";
 import { SpriteAnimatorDisposedError } from "./errors.js";
 import { createInputStore } from "./inputs.js";
@@ -27,6 +32,9 @@ interface StateChangePayload {
 }
 
 const NO_TRIGGERS: readonly string[] = [];
+
+/** A nested `update()` / `reset()` waiting for the current dispatch to finish. */
+type Queued = { readonly kind: "update"; readonly dt: number } | { readonly kind: "reset" };
 
 /**
  * Build a renderer-agnostic visual animator from an input-driven graph.
@@ -51,6 +59,8 @@ export function createSpriteAnimator(graph: SpriteGraph): SpriteAnimator {
   // Every compiled state has >= 1 frame (validated), so frame 0 always exists.
   let activeFrameKey: string = current.frameKeys[0]!;
   let disposed = false;
+  let dispatching = false;
+  const mailbox: Queued[] = [];
 
   // `name` is always an initial / transition `to` / `onEnd` target, all
   // validated to exist by compileGraph, so the lookup never misses.
@@ -79,7 +89,7 @@ export function createSpriteAnimator(graph: SpriteGraph): SpriteAnimator {
    * equals the current state is effective only if it consumes a Trigger (a
    * Number/Boolean self-loop would otherwise restart the clip every frame).
    */
-  function resolve(): { to: string; triggers: readonly string[] } | undefined {
+  function resolve(): CompiledTransition | undefined {
     // Every state has a candidate list (built for all states by compileGraph).
     const list = compiled.candidatesByState.get(current.name)!;
     for (let i = 0; i < list.length; i++) {
@@ -94,19 +104,20 @@ export function createSpriteAnimator(graph: SpriteGraph): SpriteAnimator {
       }
       if (!ok) continue;
       if (t.to === current.name && t.triggers.length === 0) continue;
-      return { to: t.to, triggers: t.triggers };
+      return t;
     }
     return undefined;
   }
 
-  function update(deltaMs: number): void {
-    if (disposed) throw new SpriteAnimatorDisposedError();
-
+  function processUpdate(deltaMs: number): void {
     // Advance the playback timer (non-finite or non-positive dt clamped to 0 for determinism).
     // NOTE: `elapsed` accumulates without bound in looping states (intentional design choice).
     // Drift from floating-point accumulation is sub-ULP-relevant only after continuous play
     // on the order of years; a periodic reset (e.g. on state entry) would be premature.
-    elapsed += (Number.isFinite(deltaMs) && deltaMs > 0 ? deltaMs : 0) * current.speed;
+    // A step that would overflow `elapsed` to Infinity (whose `% total` is NaN) is
+    // dropped: clamped to no progress, like an invalid dt.
+    const next = elapsed + (Number.isFinite(deltaMs) && deltaMs > 0 ? deltaMs : 0) * current.speed;
+    if (Number.isFinite(next)) elapsed = next;
 
     // Evaluate input-driven transitions first; an explicit transition wins over
     // implicit end-of-clip behaviour.
@@ -139,34 +150,58 @@ export function createSpriteAnimator(graph: SpriteGraph): SpriteAnimator {
       try {
         complete.emit(cs.name);
       } finally {
-        // An onComplete handler may have called reset() or dispose() during the
-        // emit above. Guard before entering onEnd: skip if the machine was
-        // disposed, if the current state was replaced (reset moved us away), or
-        // if the completed flag was cleared (reset restarted the same state).
-        // Runs in `finally` so a throwing handler cannot wedge the machine on
-        // its last frame (`completed` is already set, so no later tick would).
-        if (cs.onEnd !== undefined && !disposed && current === cs && completed) {
-          enter(cs.onEnd, NO_TRIGGERS);
-        }
+        // A reset() / update() from an onComplete handler is queued (it runs
+        // after this), so only dispose() can intervene here. Runs in `finally`
+        // so a throwing handler cannot wedge the machine on its last frame
+        // (`completed` is already set, so no later tick would).
+        if (cs.onEnd !== undefined && !disposed) enter(cs.onEnd, NO_TRIGGERS);
       }
     }
   }
 
+  function processReset(): void {
+    store.reset();
+    // Restarts the initial clip; notifies only if the state actually changes.
+    enter(compiled.initial, NO_TRIGGERS);
+  }
+
+  /**
+   * Run `first(dt)` to completion, then drain the calls its listeners queued,
+   * in order. dispose() empties the mailbox, which ends the drain. A throw drops
+   * whatever is still queued and propagates from this (outermost) call. Takes
+   * `dt` separately so the per-frame path allocates no closure.
+   */
+  function run(first: (dt: number) => void, dt: number): void {
+    dispatching = true;
+    try {
+      first(dt);
+      while (mailbox.length > 0) {
+        const m = mailbox.shift()!;
+        if (m.kind === "update") processUpdate(m.dt);
+        else processReset();
+      }
+    } finally {
+      dispatching = false;
+      mailbox.length = 0;
+    }
+  }
+
+  function update(deltaMs: number): void {
+    if (disposed) throw new SpriteAnimatorDisposedError();
+    if (dispatching) mailbox.push({ kind: "update", dt: deltaMs });
+    else run(processUpdate, deltaMs);
+  }
+
   function reset(): void {
     if (disposed) throw new SpriteAnimatorDisposedError();
-    const from = current.name;
-    store.reset();
-    current = mustState(compiled.initial);
-    elapsed = 0;
-    completed = false;
-    activeFrameIndex = 0;
-    activeFrameKey = current.frameKeys[0]!;
-    if (from !== compiled.initial) stateChange.emit({ to: compiled.initial, from });
+    if (dispatching) mailbox.push({ kind: "reset" });
+    else run(processReset, 0);
   }
 
   function dispose(): void {
     if (disposed) return;
     disposed = true;
+    mailbox.length = 0;
     stateChange.clear();
     complete.clear();
   }
