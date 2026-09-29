@@ -38,8 +38,8 @@ const anim = createSpriteAnimator({
   },
   initial: "idle",
   states: {
-    idle: { animation: "idle" },
-    run: { animation: "run", speed: 1 },
+    idle: { animation: "idle", loop: true },
+    run: { animation: "run", loop: true, speed: 1 },
     jump: { animation: "jump", loop: false, onEnd: "idle" },
   },
   transitions: [
@@ -129,7 +129,7 @@ All notable changes to aispritejs are summarized here.
 
 ### Changes
 
-- Changed: size budgets in `scripts/check-size.mjs` (maintainer-approved for the 0.6.0 minor): `dist/index.js` 4,400 -> 4,700 B, `dist/pixi/index.js` 5,100 -> 5,400 B, `dist/atlas/index.js` 5,400 -> 5,700 B for the run-to-completion mailbox, the identifier / priority / graph-shape / texture / control checks and the overflow guard, itemised in the script; after trimming duplicated gates, a dead guard and field, and comments kept in the bundle, the measured gzip closures are 4,358 -> 4,400, 5,042 -> 5,135 and 5,397 -> 5,486 B.
+- Changed: size budgets in `scripts/check-size.mjs` (maintainer-approved for the 0.6.0 minor): `dist/pixi/index.js` 5,100 -> 5,200 B and `dist/atlas/index.js` 5,400 -> 5,500 B (`dist/index.js` stays at 4,400 B) for the run-to-completion mailbox, the identifier / priority / graph-shape / texture / control checks and the overflow guard, itemised in the script; after trimming duplicated gates, a dead guard and field, and comments kept in the bundle, the measured gzip closures are 4,358 -> 4,400, 5,042 -> 5,135 and 5,397 -> 5,486 B.
 - Fixed: `emit()` re-checks listener membership on every call, so a `{ once }` listener can no longer fire twice when an earlier listener re-enters `update()`, and a listener removed mid-dispatch (by `dispose()` or an aborted `signal`) is no longer invoked.
 - Fixed: `onComplete` gives each subscription its own identity instead of sharing a registry entry keyed by the raw handler, so subscribing the same handler twice no longer collides.
 - Fixed: a throwing `onComplete`/`onStateChange` listener no longer wedges the state machine on its last frame — dispatch keeps calling the remaining listeners and `update()` still enters `onEnd`.

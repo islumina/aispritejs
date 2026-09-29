@@ -10,7 +10,7 @@ Current review state after the 2026-09-29 ai*js 0.6.0 pass.
 | P3 | Optional Pixi peer clarity | Documented | `pixi.js` is optional and type-only for `/pixi`; root remains renderer-free. |
 | P3 | Argument validation outside the graph/atlas (`src/sprite/emitter.ts`, `src/pixi/animator.ts`) | Deferred | `onStateChange`/`onComplete` accept a non-function handler (it throws a bare `TypeError` at the next notification, rethrown from `update()`), a `signal` that is not an `AbortSignal` throws a bare `TypeError` at subscribe, and `createPixiSpriteAnimator` with a missing `sprite` throws a bare `TypeError` after the texture check. Deferred: no existing error class fits (`InvalidGraphError` describes the graph, `MissingTextureError` the textures), and adding an argument error class is a 1.0 API-surface decision for the maintainer; STABILITY.md documents the boundary. |
 | — | Frame key named `textures` | Documented | Spritesheet detection is structural (`pixi.js` is type-only), so a plain texture map with an object under `textures` is read as a Spritesheet. Workaround in README Sharp Edges and the `textures` JSDoc: pass the Spritesheet or `{ textures: map }`. |
-| — | Size headroom | Note | 4,400 / 4,700 B (`index`), 5,135 / 5,400 B (`pixi`), 5,486 / 5,700 B (`atlas`) after this pass; budgets were raised for 0.6.0 with an itemised comment in `scripts/check-size.mjs`. |
+| — | Size headroom | Note | 4,400 / 4,400 B (`index`), 5,135 / 5,200 B (`pixi`), 5,486 / 5,500 B (`atlas`) after this pass; the pixi and atlas budgets were raised for 0.6.0 with an itemised comment in `scripts/check-size.mjs`. |
 
 ## Fixed Summary
 

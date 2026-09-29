@@ -39,8 +39,8 @@ const dist = resolve(root, "dist");
 // Budgets raised +100 B each to absorb the intentional guard code.
 //
 // 0.6.0 (2026-09-29) — maintainer-approved raise for the 0.6.0 minor (family
-// size-budget decision): index 4,400 → 4,700, pixi 5,100 → 5,400, atlas
-// 5,400 → 5,700 B. Contracts that consumed bytes:
+// size-budget decision): index unchanged at 4,400, pixi 5,100 → 5,200, atlas
+// 5,400 → 5,500 B. Contracts that consumed bytes:
 //   - run-to-completion FIFO mailbox for update()/reset() (core, all entries);
 //   - InvalidGraphError for non-string identifiers (initial / animation /
 //     onEnd / from / to / condition input+op), non-integer priority, and a
@@ -58,9 +58,9 @@ const dist = resolve(root, "dist");
 // Measured 0.5.9 → 0.6.0: index 4,358 → 4,400, pixi 5,042 → 5,135, atlas
 // 5,397 → 5,486 B.
 const budgets = {
-  "index.js": 4_700,
-  "pixi/index.js": 5_400,
-  "atlas/index.js": 5_700,
+  "index.js": 4_400,
+  "pixi/index.js": 5_200,
+  "atlas/index.js": 5_500,
 };
 
 // Relative-import regex matching both `from './foo'` and `import('./foo')`.

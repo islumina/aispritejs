@@ -25,8 +25,8 @@ const anim = createSpriteAnimator({
   },
   initial: "idle",
   states: {
-    idle: { animation: "idle" },
-    run: { animation: "run", speed: 1 },
+    idle: { animation: "idle", loop: true },
+    run: { animation: "run", loop: true, speed: 1 },
     jump: { animation: "jump", loop: false, onEnd: "idle" },
   },
   transitions: [
