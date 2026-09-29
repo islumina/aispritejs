@@ -340,3 +340,93 @@ describe("parseAtlas — wrong-type control fields (lenient behavior, LOCKED)", 
     expect(a.activeFrameIndex).toBe(0); // single frame loops to 0
   });
 });
+
+// P3: an explicit `control` gets the same structural checks as a control block
+// embedded in the atlas, so a malformed one is an InvalidAtlasError — never a
+// bare TypeError from the compiler — and wrong-typed optional fields are
+// rejected rather than forwarded.
+describe("parseAtlas — explicit control is structurally validated", () => {
+  const atlas = { animations: { idle: ["i0"] } };
+  const ok = (): Record<string, unknown> => ({
+    inputs: { go: { type: "trigger" } },
+    states: { idle: { animation: "idle" } },
+    transitions: [
+      { from: "idle", to: "idle" },
+      { from: "idle", to: "idle" },
+      { from: "*", to: "idle", when: [{ input: "go", op: "Trigger" }] },
+    ],
+  });
+  const withTransition2When = (when: unknown[]) => {
+    const c = ok();
+    (c.transitions as Record<string, unknown>[])[2]!.when = when;
+    return c;
+  };
+
+  it.each<[string, unknown, string]>([
+    ["a number", 5, "control must be an object"],
+    ["an array", [], "control must be an object"],
+    ["a string", "idle", "control must be an object"],
+    ["missing inputs", { ...ok(), inputs: undefined }, "control.inputs must be an object"],
+    ["null states", { ...ok(), states: null }, "control.states must be an object"],
+    ["object transitions", { ...ok(), transitions: {} }, "control.transitions must be an array"],
+    [
+      "a null input entry",
+      { ...ok(), inputs: { go: null } },
+      'control.input entry "go" must be an object, got null',
+    ],
+    [
+      "a string state entry",
+      { ...ok(), states: { idle: "bad" } },
+      'control.state entry "idle" must be an object, got string',
+    ],
+    [
+      "a null transition",
+      { ...ok(), transitions: [null] },
+      "control.transitions[0] must be an object, got null",
+    ],
+    [
+      "a null when item",
+      withTransition2When([null]),
+      "control.transitions[2].when[0] must be an object, got null",
+    ],
+    [
+      "an array when item",
+      withTransition2When([{ input: "go", op: "Trigger" }, []]),
+      "control.transitions[2].when[1] must be an object, got array",
+    ],
+    ["a non-string initial", { ...ok(), initial: 42 }, "control.initial must be a string"],
+    [
+      "a non-number defaultFrameDuration",
+      { ...ok(), defaultFrameDuration: "fast" },
+      "control.defaultFrameDuration must be a number",
+    ],
+  ])("rejects %s with InvalidAtlasError", (_label, control, message) => {
+    for (const run of [
+      () => parseAtlas(atlas, control as SpriteControl),
+      () => loadAtlas(atlas, control as SpriteControl),
+    ]) {
+      let thrown: unknown;
+      try {
+        run();
+      } catch (err) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(InvalidAtlasError);
+      expect((thrown as Error).name).toBe("InvalidAtlasError");
+      expect((thrown as Error).message).toBe(`aispritejs/atlas: ${message}`);
+    }
+  });
+
+  it("accepts a well-formed control with typed optional fields", () => {
+    const control = { ...ok(), initial: "idle", defaultFrameDuration: 50 } as SpriteControl;
+    const graph = parseAtlas(atlas, control);
+    expect(graph.initial).toBe("idle");
+    expect(graph.defaultFrameDuration).toBe(50);
+    expect(graph.transitions).toBe(control.transitions);
+  });
+
+  it("treats a null control as absent and reads the atlas's own block", () => {
+    const graph = parseAtlas(augmentedAtlas(), null as unknown as SpriteControl);
+    expect(graph.initial).toBe("idle");
+  });
+});

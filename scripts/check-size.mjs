@@ -37,10 +37,30 @@ const dist = resolve(root, "dist");
 // wave 0.5.9 actuals (2026-06-29): C7 onEnd guard + C8 clear() try/catch add
 // ~40 B gzip to core (4,288 → 4,328 B) and pixi closure (4,966 → 5,005 B).
 // Budgets raised +100 B each to absorb the intentional guard code.
+//
+// 0.6.0 (2026-09-29) — maintainer-approved raise for the 0.6.0 minor (family
+// size-budget decision): index 4,400 → 4,700, pixi 5,100 → 5,400, atlas
+// 5,400 → 5,700 B. Contracts that consumed bytes:
+//   - run-to-completion FIFO mailbox for update()/reset() (core, all entries);
+//   - InvalidGraphError for non-string identifiers (initial / animation /
+//     onEnd / from / to / condition input+op), non-integer priority, and a
+//     malformed graph shape (core, all entries);
+//   - overflow guard: a step that would push `elapsed` to Infinity is dropped
+//     (core, all entries);
+//   - Pixi: nullish texture entries / map count as missing, the graph shape is
+//     checked before the texture scan, sync() runs in `finally` (pixi);
+//   - explicit `control` gets the embedded block's structural checks plus typed
+//     initial / defaultFrameDuration (atlas).
+// Trimmed first (about -420 B on the core closure): the dead onEnd guard
+// clauses and CompiledState.animation field, the duplicated input-default and
+// duration/speed gates, reset() now reusing enter(), resolve() returning the
+// transition itself, and comments that esbuild kept inside object literals.
+// Measured 0.5.9 → 0.6.0: index 4,358 → 4,400, pixi 5,042 → 5,135, atlas
+// 5,397 → 5,486 B.
 const budgets = {
-  "index.js": 4_400,
-  "pixi/index.js": 5_100,
-  "atlas/index.js": 5_400,
+  "index.js": 4_700,
+  "pixi/index.js": 5_400,
+  "atlas/index.js": 5_700,
 };
 
 // Relative-import regex matching both `from './foo'` and `import('./foo')`.

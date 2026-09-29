@@ -16,8 +16,10 @@ export class SpriteAnimatorDisposedError extends Error {
 }
 
 /**
- * Thrown by `createSpriteAnimator` when the graph fails validation — a state
- * references a missing animation, a transition points at an unknown state, a
+ * Thrown by `createSpriteAnimator` when the graph fails validation — the graph
+ * or one of its blocks has the wrong shape, a state/transition/condition
+ * identifier is not a string, a state references a missing animation, a
+ * transition points at an unknown state or has a non-integer priority, a
  * condition uses an operator the input kind does not support, a duration is
  * non-positive, and so on. Fail-fast: an invalid graph never produces a
  * half-built animator.

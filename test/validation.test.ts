@@ -1,5 +1,15 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { InvalidGraphError, type SpriteGraph, createSpriteAnimator } from "../src/index.js";
+
+/** The slice of JSON Schema these tests walk. */
+interface SchemaNode {
+  readonly type?: string | readonly string[];
+  readonly enum?: readonly unknown[];
+  readonly properties?: Readonly<Record<string, SchemaNode>>;
+  readonly items?: SchemaNode;
+  readonly additionalProperties?: SchemaNode;
+}
 
 // Build a minimal valid graph, then override one field per case to isolate the
 // failure. Malformed-shape cases (bad operator / input type) use a cast since
@@ -379,5 +389,169 @@ describe("schema hardening — minProperties + finite maximums", () => {
         states: { idle: { animation: "idle", speed: 1000 } },
       }),
     ).not.toThrow();
+  });
+});
+
+// P1: every identifier the compiler resolves through `Object.hasOwn` must be a
+// string (hasOwn would stringify 0 or ["idle"] into a declared name). Each case
+// also pins that the JSON Schema declares the same field as a string, so code
+// and schema cannot drift apart.
+describe("identifier types (P1) — code and schema in sync", () => {
+  const schema = JSON.parse(
+    readFileSync(new URL("../schemas/aispritejs-graph.schema.json", import.meta.url), "utf8"),
+  ) as SchemaNode;
+  const transition = schema.properties!.transitions!.items!;
+  const condition = transition.properties!.when!.items!;
+  const schemaFields: Record<string, SchemaNode> = {
+    initial: schema.properties!.initial!,
+    animation: schema.properties!.states!.additionalProperties!.properties!.animation!,
+    onEnd: schema.properties!.states!.additionalProperties!.properties!.onEnd!,
+    from: transition.properties!.from!,
+    to: transition.properties!.to!,
+    input: condition.properties!.input!,
+    op: condition.properties!.op!,
+  };
+
+  const cases: ReadonlyArray<[field: string, graph: () => unknown, message: RegExp]> = [
+    ["initial", () => ({ ...base(), initial: 0 }), /initial must be a string, got number/],
+    [
+      "animation",
+      () => ({ ...base(), animations: { "1": ["i0"] }, states: { idle: { animation: 1 } } }),
+      /state "idle" animation must be a string, got number/,
+    ],
+    [
+      "onEnd",
+      () => ({ ...base(), states: { idle: { animation: "idle", onEnd: ["idle"] } } }),
+      /state "idle" onEnd must be a string, got object/,
+    ],
+    [
+      "from",
+      () => ({ ...base(), transitions: [{ from: ["idle"], to: "idle" }] }),
+      /transition #0 "from" must be a string, got object/,
+    ],
+    [
+      "to",
+      () => ({ ...base(), transitions: [{ from: "idle", to: ["idle"] }] }),
+      /transition #0 "to" must be a string, got object/,
+    ],
+    [
+      "input",
+      () => ({
+        ...base(),
+        inputs: { "0": { type: "trigger" } },
+        transitions: [{ from: "idle", to: "idle", when: [{ input: 0, op: "Trigger" }] }],
+      }),
+      /transition #0 condition "input" must be a string, got number/,
+    ],
+    [
+      "op",
+      () => ({
+        ...base(),
+        transitions: [{ from: "idle", to: "idle", when: [{ input: "t", op: ["Trigger"] }] }],
+      }),
+      /transition #0 condition "op" must be a string, got object/,
+    ],
+  ];
+
+  for (const [field, graph, message] of cases) {
+    it(`rejects a non-string ${field} with InvalidGraphError naming the field`, () => {
+      expect(() => createSpriteAnimator(graph() as SpriteGraph)).toThrow(InvalidGraphError);
+      expect(() => createSpriteAnimator(graph() as SpriteGraph)).toThrow(message);
+      const node = schemaFields[field]!;
+      // `op` is an enum of strings rather than a `type`; both mean "string".
+      if (node.type !== undefined) expect(node.type).toBe("string");
+      else expect(node.enum?.every((v) => typeof v === "string")).toBe(true);
+    });
+  }
+
+  it("rejects a null state entry and a null condition as a non-string field", () => {
+    expect(() =>
+      createSpriteAnimator({ ...base(), states: { idle: null } } as unknown as SpriteGraph),
+    ).toThrow(/state "idle" animation must be a string, got undefined/);
+    expect(() =>
+      createSpriteAnimator({
+        ...base(),
+        transitions: [{ from: "idle", to: "idle", when: [null] }],
+      } as unknown as SpriteGraph),
+    ).toThrow(/transition #0 condition "input" must be a string, got undefined/);
+  });
+});
+
+// P3: priority must be an integer (the schema already says so) — NaN or a
+// string would make the candidate sort inconsistent and could flip the winner.
+describe("transition priority (P3)", () => {
+  const withPriority = (priority: unknown) =>
+    ({
+      ...base(),
+      transitions: [{ from: "idle", to: "idle", when: [{ input: "t", op: "Trigger" }], priority }],
+    }) as unknown as SpriteGraph;
+
+  it.each([Number.NaN, "1", 1.5, Number.POSITIVE_INFINITY])("rejects priority %s", (p) => {
+    expect(() => createSpriteAnimator(withPriority(p))).toThrow(InvalidGraphError);
+    expect(() => createSpriteAnimator(withPriority(p))).toThrow(
+      /transition #0 priority must be an integer, got /,
+    );
+  });
+
+  it.each([0, -3, 7])("accepts integer priority %s", (p) => {
+    expect(() => createSpriteAnimator(withPriority(p))).not.toThrow();
+  });
+
+  it("matches the schema's integer type", () => {
+    const schema = JSON.parse(
+      readFileSync(new URL("../schemas/aispritejs-graph.schema.json", import.meta.url), "utf8"),
+    ) as SchemaNode;
+    expect(schema.properties!.transitions!.items!.properties!.priority!.type).toBe("integer");
+  });
+
+  it("a negative priority still loses to the default 0", () => {
+    const a = createSpriteAnimator({
+      animations: { a: ["a0"], lo: ["l0"], hi: ["h0"] },
+      inputs: {},
+      states: { a: { animation: "a" }, lo: { animation: "lo" }, hi: { animation: "hi" } },
+      transitions: [
+        { from: "a", to: "lo", priority: -1 },
+        { from: "a", to: "hi" },
+      ],
+      initial: "a",
+    });
+    a.update(0);
+    expect(a.activeState).toBe("hi");
+  });
+});
+
+// Family argument-validation rule: createSpriteAnimator reports a malformed
+// graph from an untyped caller as InvalidGraphError, never a bare TypeError.
+describe("graph shape (argument validation)", () => {
+  it.each<[string, unknown, RegExp]>([
+    ["undefined", undefined, /graph must be an object/],
+    ["null", null, /graph must be an object/],
+    ["an array", [], /graph must be an object/],
+    ["no animations", { ...base(), animations: undefined }, /animations must be an object/],
+    ["null inputs", { ...base(), inputs: null }, /inputs must be an object/],
+    ["array states", { ...base(), states: [] }, /states must be an object/],
+    ["object transitions", { ...base(), transitions: {} }, /transitions must be an array/],
+    ["missing transitions", { ...base(), transitions: undefined }, /transitions must be an array/],
+    [
+      "a non-array animation",
+      { ...base(), animations: { idle: ["i0"], other: 5 } },
+      /animation "other" must be an array of frame keys/,
+    ],
+    [
+      "a string animation",
+      { ...base(), animations: { idle: "i0" } },
+      /animation "idle" must be an array of frame keys/,
+    ],
+    ["a null input entry", { ...base(), inputs: { n: null } }, /input "n" has unknown type/],
+  ])("rejects %s with InvalidGraphError", (_label, graph, message) => {
+    let thrown: unknown;
+    try {
+      createSpriteAnimator(graph as SpriteGraph);
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(InvalidGraphError);
+    expect((thrown as Error).name).toBe("InvalidGraphError");
+    expect((thrown as Error).message).toMatch(message);
   });
 });

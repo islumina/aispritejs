@@ -35,19 +35,34 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./pixi": {
-      "types": "./dist/pixi/index.d.ts",
-      "import": "./dist/pixi/index.js",
-      "require": "./dist/pixi/index.cjs"
+      "import": {
+        "types": "./dist/pixi/index.d.ts",
+        "default": "./dist/pixi/index.js"
+      },
+      "require": {
+        "types": "./dist/pixi/index.d.cts",
+        "default": "./dist/pixi/index.cjs"
+      }
     },
     "./atlas": {
-      "types": "./dist/atlas/index.d.ts",
-      "import": "./dist/atlas/index.js",
-      "require": "./dist/atlas/index.cjs"
+      "import": {
+        "types": "./dist/atlas/index.d.ts",
+        "default": "./dist/atlas/index.js"
+      },
+      "require": {
+        "types": "./dist/atlas/index.d.cts",
+        "default": "./dist/atlas/index.cjs"
+      }
     },
     "./schema": "./schemas/aispritejs-graph.schema.json"
   },

@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { type SpriteAnimator, type SpriteGraph, createSpriteAnimator } from "../src/index.js";
+import {
+  type SpriteAnimator,
+  SpriteAnimatorDisposedError,
+  type SpriteGraph,
+  createSpriteAnimator,
+} from "../src/index.js";
 import { platformer } from "./fixtures/graphs.js";
 
 // Toggle idle⇄walk to emit a state change on demand.
@@ -13,7 +18,8 @@ function toIdle(a: SpriteAnimator): void {
 }
 
 // a → b on `go`, then b → c unconditionally: one update(0) after `go` yields
-// a→b, and a re-entrant update(0) from a listener yields b→c mid-dispatch.
+// a→b, and an update(0) from a listener yields b→c once the outer call's
+// listeners have all run (run-to-completion mailbox).
 function abc(): SpriteGraph {
   return {
     animations: { a: ["a0"], b: ["b0"], c: ["c0"] },
@@ -318,9 +324,10 @@ describe("emitter edge cases", () => {
     expect(abortedComplete).not.toHaveBeenCalled();
   });
 
-  // A listener removed during an in-flight dispatch (by a `once` wrapper that
-  // already fired re-entrantly, by dispose(), or by an aborted signal) must not
-  // be called by the remainder of that dispatch.
+  // A listener removed during an in-flight dispatch (by a `once` wrapper, by
+  // dispose(), or by an aborted signal) must not be called by the remainder of
+  // that dispatch. A nested update() is queued, so the `once` listener sees the
+  // outer a→b first and is gone before the queued b→c runs.
   it("a { once } listener fires once even when an earlier listener re-enters update()", () => {
     const a = createSpriteAnimator(abc());
     const rec = vi.fn();
@@ -331,7 +338,7 @@ describe("emitter edge cases", () => {
     a.setInput("go", true);
     a.update(0);
     expect(a.activeState).toBe("c");
-    expect(rec).toHaveBeenCalledExactlyOnceWith("c", "b");
+    expect(rec).toHaveBeenCalledExactlyOnceWith("b", "a");
   });
 
   it("a listener registered after one that calls dispose() is not invoked", () => {
@@ -354,5 +361,139 @@ describe("emitter edge cases", () => {
     a.setInput("go", true);
     a.update(0);
     expect(rec).not.toHaveBeenCalled();
+  });
+});
+
+// Run-to-completion (ai*js family rule for state-owning dispatchers): an
+// update() / reset() called from a listener is queued in a FIFO mailbox and
+// runs after the outer call's last notification.
+describe("re-entrant update() / reset() are queued", () => {
+  it("a nested update() runs after every listener of the outer update()", () => {
+    const a = createSpriteAnimator(abc());
+    const log: string[] = [];
+    a.onStateChange((to, from) => {
+      log.push(`first ${from}->${to} @${a.activeState}`);
+      if (to === "b") a.update(0);
+      log.push(`after nested @${a.activeState}`);
+    });
+    a.onStateChange((to, from) => log.push(`second ${from}->${to} @${a.activeState}`));
+    a.setInput("go", true);
+    a.update(0);
+    expect(log).toEqual([
+      "first a->b @b",
+      "after nested @b", // the nested call returned without running
+      "second a->b @b", // later listeners still see the outer transition
+      "first b->c @c",
+      "after nested @c",
+      "second b->c @c",
+    ]);
+    expect(a.activeState).toBe("c");
+  });
+
+  it("nested calls drain in FIFO order", () => {
+    const a = createSpriteAnimator(abc());
+    const log: string[] = [];
+    a.onStateChange((to, from) => {
+      log.push(`${from}->${to}`);
+      if (to === "b") {
+        a.update(0); // b -> c
+        a.reset(); // c -> a
+      }
+    });
+    a.setInput("go", true);
+    a.update(0);
+    expect(log).toEqual(["a->b", "b->c", "c->a"]);
+    expect(a.activeState).toBe("a");
+  });
+
+  it("setInput() from a listener applies at once (never queued)", () => {
+    const a = createSpriteAnimator(platformer());
+    let threwInListener = false;
+    a.onStateChange((to) => {
+      if (to !== "walk") return;
+      try {
+        a.setInput("speed", Number.NaN); // validated synchronously, right here
+      } catch {
+        threwInListener = true;
+      }
+      a.setInput("speed", 0);
+      a.update(0); // queued; runs after this call and sees speed 0
+    });
+    a.setInput("speed", 1);
+    a.update(0);
+    expect(threwInListener).toBe(true);
+    expect(a.activeState).toBe("idle");
+  });
+
+  it("dispose() from a listener drops the queued calls", () => {
+    const a = createSpriteAnimator(abc());
+    const rec = vi.fn();
+    a.onStateChange((to) => {
+      if (to === "b") {
+        a.update(0); // queued b -> c
+        a.dispose();
+      }
+    });
+    a.onStateChange(rec);
+    a.setInput("go", true);
+    expect(() => a.update(0)).not.toThrow();
+    expect(a.disposed).toBe(true);
+    expect(a.activeState).toBe("b"); // the queued update never ran
+    expect(rec).not.toHaveBeenCalled(); // cleared by dispose()
+  });
+
+  it("a nested update() after dispose() still throws SpriteAnimatorDisposedError", () => {
+    const a = createSpriteAnimator(abc());
+    a.onStateChange(() => {
+      a.dispose();
+      a.update(0);
+    });
+    a.setInput("go", true);
+    expect(() => a.update(0)).toThrow(SpriteAnimatorDisposedError);
+  });
+
+  it("a throwing listener drops the queued calls and resets the dispatch flag", () => {
+    const a = createSpriteAnimator(abc());
+    a.onStateChange((to) => {
+      if (to === "b") a.reset(); // queued, then dropped by the throw below
+    });
+    a.onStateChange((to) => {
+      if (to === "b") throw new Error("boom");
+    });
+    a.setInput("go", true);
+    expect(() => a.update(0)).toThrow("boom");
+    expect(a.activeState).toBe("b"); // the queued reset() never ran
+    // Not wedged in "dispatching": the next outer call runs normally, and the
+    // dropped reset() does not resurface after it.
+    a.update(0);
+    expect(a.activeState).toBe("c");
+  });
+
+  it("an error from a queued call propagates from the outermost update()", () => {
+    const a = createSpriteAnimator(abc());
+    a.onStateChange((to) => {
+      if (to === "b") a.update(0);
+      if (to === "c") throw new Error("from queued");
+    });
+    a.setInput("go", true);
+    expect(() => a.update(0)).toThrow("from queued");
+    expect(a.activeState).toBe("c"); // state stays at the last commit
+    a.reset(); // dispatch flag was reset
+    expect(a.activeState).toBe("a");
+  });
+
+  it("two animators have independent mailboxes", () => {
+    const x = createSpriteAnimator(abc());
+    const y = createSpriteAnimator(abc());
+    y.setInput("go", true);
+    x.onStateChange((to) => {
+      if (to === "b") {
+        y.update(0); // a different animator: runs at once
+        expect(y.activeState).toBe("b");
+      }
+    });
+    x.setInput("go", true);
+    x.update(0);
+    expect(x.activeState).toBe("b");
   });
 });
