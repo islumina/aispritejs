@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { InvalidGraphError, type SpriteGraph, createSpriteAnimator } from "../src/index.js";
+import { createSpriteAnimator, InvalidGraphError, type SpriteGraph } from "../src/index.js";
 
 /** The slice of JSON Schema these tests walk. */
 interface SchemaNode {

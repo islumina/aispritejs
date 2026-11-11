@@ -1,11 +1,10 @@
-export { createSpriteAnimator } from "./machine.js";
-
 export {
   InputTypeError,
   InvalidGraphError,
   SpriteAnimatorDisposedError,
   UnknownInputError,
 } from "./errors.js";
+export { createSpriteAnimator } from "./machine.js";
 
 export type {
   BooleanInputDef,

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  createSpriteAnimator,
   type SpriteAnimator,
   SpriteAnimatorDisposedError,
   type SpriteGraph,
-  createSpriteAnimator,
 } from "../src/index.js";
 import { platformer } from "./fixtures/graphs.js";
 

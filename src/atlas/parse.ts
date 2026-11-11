@@ -16,13 +16,13 @@
 
 import { isObject } from "../sprite/compile.js";
 import {
+  createSpriteAnimator,
   type FrameTiming,
   type InputDef,
   type SpriteAnimator,
   type SpriteGraph,
   type StateDef,
   type TransitionDef,
-  createSpriteAnimator,
 } from "../sprite/index.js";
 
 /**
@@ -107,7 +107,9 @@ function assertControlShape(src: Record<string, unknown>, p: string): void {
     // malformed condition (sibling of F-5).
     const when = (entry as { when?: unknown }).when;
     if (Array.isArray(when)) {
-      when.forEach((cond: unknown, j) => assertEntry(cond, `${p}transitions[${i}].when[${j}]`));
+      when.forEach((cond: unknown, j) => {
+        assertEntry(cond, `${p}transitions[${i}].when[${j}]`);
+      });
     }
   });
 }

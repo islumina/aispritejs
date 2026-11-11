@@ -26,9 +26,7 @@ const clipsCommand: fc.Arbitrary<ClipsCmd> = fc.oneof(
   fc.boolean().map((b) => ({ kind: "go", b }) as const),
   fc.constant({ kind: "attack" } as const),
   // Explicitly exclude Infinity/NaN: generator is bounded integer-only.
-  fc
-    .integer({ min: 0, max: 300 })
-    .map((dt) => ({ kind: "update", dt }) as const),
+  fc.integer({ min: 0, max: 300 }).map((dt) => ({ kind: "update", dt }) as const),
 );
 
 function trace(cmds: readonly Cmd[]): string[] {

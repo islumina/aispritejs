@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  createSpriteAnimator,
   InputTypeError,
   type SpriteGraph,
   UnknownInputError,
-  createSpriteAnimator,
 } from "../src/index.js";
 
 function graph(): SpriteGraph {
