@@ -39,6 +39,7 @@ Current review state after the 2026-09-29 ai*js 0.6.0 pass.
 - 0.6.0 family rules: `createSpriteAnimator`/`createPixiSpriteAnimator` report a malformed graph shape with `InvalidGraphError` instead of a bare `TypeError`; `package.json` `exports` nest `types` under `import`/`require` with `.d.cts` types, checked by the recursive `verify-exports` and `test/exports.test.ts`.
 - 0.6.0 docs: corrected the Spritesheet-detection workaround for a frame named `textures` (the old `spritesheet.textures` advice hit the same misdetection).
 - 0.6.0 size: the dead onEnd guard clauses and `CompiledState.animation` field, the duplicated input-default and duration/speed gates, and comments esbuild kept inside object literals were removed; `reset()` reuses `enter()`.
+- A graph without `initial` whose state names include an integer-like key now throws `InvalidGraphError` instead of silently starting in that key (JS enumerates array-index keys first, so declaration order is lost).
 
 ## Verification Baseline
 

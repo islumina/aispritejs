@@ -177,7 +177,10 @@ export interface SpriteGraph {
   readonly transitions: readonly TransitionDef[];
   /**
    * Name of the starting state. Defaults to the first key of `states` in
-   * declaration order. Must reference a declared state.
+   * declaration order. Must reference a declared state. Required when any
+   * state name is integer-like (`"0"`, `"1"`, `"42"`): JS enumerates such keys
+   * before all others, so declaration order is lost and the compiler throws
+   * {@link InvalidGraphError} instead of guessing.
    */
   readonly initial?: string;
   /**

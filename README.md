@@ -85,6 +85,7 @@ view.dispose(); // disposes core animator; does not destroy the Pixi sprite
 - A texture map with an object under the key `textures` is read as a `Spritesheet`; if a frame is literally named `textures`, pass the `Spritesheet` (or `{ textures: map }`) instead of the bare map.
 - `duration`, `defaultFrameDuration`, and state `speed` must be finite numbers greater than zero.
 - `initial`, state `animation` / `onEnd`, transition `from` / `to`, and condition `input` / `op` must be strings, and a transition `priority` must be an integer.
+- `initial` defaults to the first declared state, but JS lists integer-like keys (`"0"`, `"1"`, `"42"`) before all others, so a graph with any integer-like state name must set `initial` or it throws `InvalidGraphError`.
 
 ## AI Context
 

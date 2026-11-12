@@ -2,6 +2,16 @@
 
 All notable changes to aispritejs are summarized here.
 
+## [Unreleased]
+
+### Breaking
+
+- `SpriteGraph.initial`: a graph with no `initial` and any integer-like state name (an array index such as `"0"`, `"1"` or `"42"`) now makes `createSpriteAnimator()` / `loadAtlas()` / `createPixiSpriteAnimator()` throw `InvalidGraphError` (`initial is required: state "<name>" is integer-like`), because JS enumerates such keys before every other key, so the documented default (the first state in declaration order) silently became the integer-like state instead. Migration: set `initial` explicitly on graphs with integer-like state names.
+
+### Changes
+
+- Changed: size budgets in `scripts/check-size.mjs`: `dist/index.js` 4,400 -> 4,475 B, `dist/pixi/index.js` 5,200 -> 5,211 B and `dist/atlas/index.js` 5,500 -> 5,561 B for the integer-like state-name check, itemised in the script.
+
 ## [0.6.0] - 2026-09-29
 
 ### Breaking

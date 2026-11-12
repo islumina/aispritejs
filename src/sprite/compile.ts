@@ -141,8 +141,16 @@ export function compileGraph(graph: SpriteGraph): CompiledGraph {
     }
   }
 
-  if (graph.initial !== undefined) assertString(graph.initial, "initial");
-  const initial = graph.initial ?? stateEntries[0]![0];
+  let initial = graph.initial;
+  if (initial === undefined) {
+    // JS enumerates array-index keys ("0", "1", ... below 2^32 - 1) before
+    // every other key, whatever the declaration order: if any state name is
+    // one, the first entry is one too and the declared-first state is lost.
+    initial = stateEntries[0]![0];
+    if (/^(0|[1-9]\d*)$/.test(initial) && +initial < 2 ** 32 - 1) {
+      throw new InvalidGraphError(`initial is required: state "${initial}" is integer-like`);
+    }
+  } else assertString(initial, "initial");
   if (!Object.hasOwn(graph.states, initial)) {
     throw new InvalidGraphError(`initial state "${initial}" is not declared`);
   }

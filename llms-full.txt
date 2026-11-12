@@ -98,6 +98,7 @@ view.dispose(); // disposes core animator; does not destroy the Pixi sprite
 - A texture map with an object under the key `textures` is read as a `Spritesheet`; if a frame is literally named `textures`, pass the `Spritesheet` (or `{ textures: map }`) instead of the bare map.
 - `duration`, `defaultFrameDuration`, and state `speed` must be finite numbers greater than zero.
 - `initial`, state `animation` / `onEnd`, transition `from` / `to`, and condition `input` / `op` must be strings, and a transition `priority` must be an integer.
+- `initial` defaults to the first declared state, but JS lists integer-like keys (`"0"`, `"1"`, `"42"`) before all others, so a graph with any integer-like state name must set `initial` or it throws `InvalidGraphError`.
 
 ## AI Context
 
@@ -119,6 +120,16 @@ MIT
 # Changelog
 
 All notable changes to aispritejs are summarized here.
+
+## [Unreleased]
+
+### Breaking
+
+- `SpriteGraph.initial`: a graph with no `initial` and any integer-like state name (an array index such as `"0"`, `"1"` or `"42"`) now makes `createSpriteAnimator()` / `loadAtlas()` / `createPixiSpriteAnimator()` throw `InvalidGraphError` (`initial is required: state "<name>" is integer-like`), because JS enumerates such keys before every other key, so the documented default (the first state in declaration order) silently became the integer-like state instead. Migration: set `initial` explicitly on graphs with integer-like state names.
+
+### Changes
+
+- Changed: size budgets in `scripts/check-size.mjs`: `dist/index.js` 4,400 -> 4,475 B, `dist/pixi/index.js` 5,200 -> 5,211 B and `dist/atlas/index.js` 5,500 -> 5,561 B for the integer-like state-name check, itemised in the script.
 
 ## [0.6.0] - 2026-09-29
 
