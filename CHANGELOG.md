@@ -2,6 +2,18 @@
 
 All notable changes to aispritejs are summarized here.
 
+## [Unreleased]
+
+### Breaking
+
+- `SpriteGraph.initial`: a graph with no `initial` and any integer-like state name (an array index such as `"0"`, `"1"` or `"42"`) now makes `createSpriteAnimator()` / `loadAtlas()` / `createPixiSpriteAnimator()` throw `InvalidGraphError` (`initial is required: state "<name>" is integer-like`), because JS enumerates such keys before every other key, so the documented default (the first state in declaration order) silently became the integer-like state instead. Migration: set `initial` explicitly on graphs with integer-like state names.
+
+### Changes
+
+- Fixed: a looping state wraps its playback clock into one clip length on every `update()`, so a single huge finite `dt` (e.g. a nanosecond timestamp passed as milliseconds) no longer pushes the clock past float precision and freezes the clip on one frame until the state is re-entered.
+- Fixed: `createSpriteAnimator()` / `createPixiSpriteAnimator()` throw `InvalidGraphError` (`animation "<name>" frame keys must be strings`) for a non-string frame key from untyped JSON (`null`, `42`, `["a"]`, an object, or an array hole) instead of compiling it, which made `activeFrameKey` return a non-string and let `["a"]` silently resolve to frame / texture `"a"`; the schema and `parseAtlas()` already required strings.
+- Changed: size budgets in `scripts/check-size.mjs`: `dist/index.js` 4,400 -> 4,502 B, `dist/pixi/index.js` 5,200 -> 5,237 B and `dist/atlas/index.js` 5,500 -> 5,587 B for the integer-like state-name and frame-key type checks, itemised in the script.
+
 ## [0.6.0] - 2026-09-29
 
 ### Breaking

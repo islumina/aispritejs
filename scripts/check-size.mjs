@@ -57,10 +57,23 @@ const dist = resolve(root, "dist");
 // transition itself, and comments that esbuild kept inside object literals.
 // Measured 0.5.9 → 0.6.0: index 4,358 → 4,400, pixi 5,042 → 5,135, atlas
 // 5,397 → 5,486 B.
+//
+// Unreleased (2026-11 review fixes) — each raise is the measured closure after
+// the smallest form of the fix (no slack):
+//   - S1: InvalidGraphError when `initial` is omitted and a state name is
+//     integer-like (JS lists array-index keys first, so the declared-first
+//     state is unrecoverable): index 4,400 -> 4,475, pixi 5,135 -> 5,211,
+//     atlas 5,485 -> 5,561 B.
+//   - S2: wrapping a looping state's clock made the frame lookup's own
+//     `elapsed % total` redundant; dropping it nets -2 B, no raise.
+//   - S3: InvalidGraphError for a non-string animation frame key (core and
+//     Pixi share assertGraphShape): index 4,473 -> 4,502, pixi 5,208 -> 5,237,
+//     atlas 5,559 -> 5,587 B. Folding it into the existing "must be an array"
+//     check would save ~10 B but change that pinned message.
 const budgets = {
-  "index.js": 4_400,
-  "pixi/index.js": 5_200,
-  "atlas/index.js": 5_500,
+  "index.js": 4_502,
+  "pixi/index.js": 5_237,
+  "atlas/index.js": 5_587,
 };
 
 // Relative-import regex matching both `from './foo'` and `import('./foo')`.

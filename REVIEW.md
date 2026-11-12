@@ -10,7 +10,7 @@ Current review state after the 2026-09-29 ai*js 0.6.0 pass.
 | P3 | Optional Pixi peer clarity | Documented | `pixi.js` is optional and type-only for `/pixi`; root remains renderer-free. |
 | P3 | Argument validation outside the graph/atlas (`src/sprite/emitter.ts`, `src/pixi/animator.ts`) | Deferred | `onStateChange`/`onComplete` accept a non-function handler (it throws a bare `TypeError` at the next notification, rethrown from `update()`), a `signal` that is not an `AbortSignal` throws a bare `TypeError` at subscribe, and `createPixiSpriteAnimator` with a missing `sprite` throws a bare `TypeError` after the texture check. Deferred: no existing error class fits (`InvalidGraphError` describes the graph, `MissingTextureError` the textures), and adding an argument error class is a 1.0 API-surface decision for the maintainer; STABILITY.md documents the boundary. |
 | — | Frame key named `textures` | Documented | Spritesheet detection is structural (`pixi.js` is type-only), so a plain texture map with an object under `textures` is read as a Spritesheet. Workaround in README Sharp Edges and the `textures` JSDoc: pass the Spritesheet or `{ textures: map }`. |
-| — | Size headroom | Note | 4,400 / 4,400 B (`index`), 5,135 / 5,200 B (`pixi`), 5,486 / 5,500 B (`atlas`) after this pass; the pixi and atlas budgets were raised for 0.6.0 with an itemised comment in `scripts/check-size.mjs`. |
+| — | Size headroom | Note | 4,502 / 4,502 B (`index`), 5,237 / 5,237 B (`pixi`), 5,587 / 5,587 B (`atlas`) after the 2026-11 review fixes; the budgets were raised to the measured sizes (no slack) with an itemised comment in `scripts/check-size.mjs`. |
 
 ## Fixed Summary
 
@@ -39,6 +39,9 @@ Current review state after the 2026-09-29 ai*js 0.6.0 pass.
 - 0.6.0 family rules: `createSpriteAnimator`/`createPixiSpriteAnimator` report a malformed graph shape with `InvalidGraphError` instead of a bare `TypeError`; `package.json` `exports` nest `types` under `import`/`require` with `.d.cts` types, checked by the recursive `verify-exports` and `test/exports.test.ts`.
 - 0.6.0 docs: corrected the Spritesheet-detection workaround for a frame named `textures` (the old `spritesheet.textures` advice hit the same misdetection).
 - 0.6.0 size: the dead onEnd guard clauses and `CompiledState.animation` field, the duplicated input-default and duration/speed gates, and comments esbuild kept inside object literals were removed; `reset()` reuses `enter()`.
+- A graph without `initial` whose state names include an integer-like key now throws `InvalidGraphError` instead of silently starting in that key (JS enumerates array-index keys first, so declaration order is lost).
+- A looping state wraps `elapsed` into `[0, total)` on every step, so one huge finite `dt` (1e18 ms) can no longer freeze the clip by absorbing every later step.
+- The core compiler (shared by the Pixi adapter) rejects a non-string animation frame key with `InvalidGraphError`, matching the schema and `parseAtlas()`; `["a"]` no longer stringifies into frame `"a"`.
 
 ## Verification Baseline
 

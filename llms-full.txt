@@ -97,7 +97,8 @@ view.dispose(); // disposes core animator; does not destroy the Pixi sprite
 - Every frame key in every declared animation must exist in the texture map/spritesheet — including an animation no state references — or the adapter throws `MissingTextureError` at construction. A `null` / `undefined` entry counts as missing.
 - A texture map with an object under the key `textures` is read as a `Spritesheet`; if a frame is literally named `textures`, pass the `Spritesheet` (or `{ textures: map }`) instead of the bare map.
 - `duration`, `defaultFrameDuration`, and state `speed` must be finite numbers greater than zero.
-- `initial`, state `animation` / `onEnd`, transition `from` / `to`, and condition `input` / `op` must be strings, and a transition `priority` must be an integer.
+- `initial`, animation frame keys, state `animation` / `onEnd`, transition `from` / `to`, and condition `input` / `op` must be strings, and a transition `priority` must be an integer.
+- `initial` defaults to the first declared state, but JS lists integer-like keys (`"0"`, `"1"`, `"42"`) before all others, so a graph with any integer-like state name must set `initial` or it throws `InvalidGraphError`.
 
 ## AI Context
 
@@ -119,6 +120,18 @@ MIT
 # Changelog
 
 All notable changes to aispritejs are summarized here.
+
+## [Unreleased]
+
+### Breaking
+
+- `SpriteGraph.initial`: a graph with no `initial` and any integer-like state name (an array index such as `"0"`, `"1"` or `"42"`) now makes `createSpriteAnimator()` / `loadAtlas()` / `createPixiSpriteAnimator()` throw `InvalidGraphError` (`initial is required: state "<name>" is integer-like`), because JS enumerates such keys before every other key, so the documented default (the first state in declaration order) silently became the integer-like state instead. Migration: set `initial` explicitly on graphs with integer-like state names.
+
+### Changes
+
+- Fixed: a looping state wraps its playback clock into one clip length on every `update()`, so a single huge finite `dt` (e.g. a nanosecond timestamp passed as milliseconds) no longer pushes the clock past float precision and freezes the clip on one frame until the state is re-entered.
+- Fixed: `createSpriteAnimator()` / `createPixiSpriteAnimator()` throw `InvalidGraphError` (`animation "<name>" frame keys must be strings`) for a non-string frame key from untyped JSON (`null`, `42`, `["a"]`, an object, or an array hole) instead of compiling it, which made `activeFrameKey` return a non-string and let `["a"]` silently resolve to frame / texture `"a"`; the schema and `parseAtlas()` already required strings.
+- Changed: size budgets in `scripts/check-size.mjs`: `dist/index.js` 4,400 -> 4,502 B, `dist/pixi/index.js` 5,200 -> 5,237 B and `dist/atlas/index.js` 5,500 -> 5,587 B for the integer-like state-name and frame-key type checks, itemised in the script.
 
 ## [0.6.0] - 2026-09-29
 
@@ -188,7 +201,7 @@ All notable changes to aispritejs are summarized here.
 ## Behavioral Contract
 
 - Core is renderer-agnostic and has zero runtime dependencies.
-- Graph validation is fail-fast; invalid graphs do not produce half-built animators. A malformed graph shape (a non-object graph, `animations`, `inputs` or `states`, a non-array `transitions` or frame list, a `null` entry), a non-string identifier (`initial`, state `animation` / `onEnd`, transition `from` / `to`, condition `input` / `op`), or a non-integer `priority` throws `InvalidGraphError` naming the field, never a bare `TypeError`.
+- Graph validation is fail-fast; invalid graphs do not produce half-built animators. A malformed graph shape (a non-object graph, `animations`, `inputs` or `states`, a non-array `transitions` or frame list, a `null` entry), a non-string identifier (`initial`, an animation frame key, state `animation` / `onEnd`, transition `from` / `to`, condition `input` / `op`), or a non-integer `priority` throws `InvalidGraphError` naming the field, never a bare `TypeError`.
 - Trigger inputs are consumed when a transition uses them.
 - `update(dt)` clamps invalid/non-positive elapsed time to no progress, and drops a step that would overflow the playback clock to `Infinity` (also no progress).
 - `update()` / `reset()` are run-to-completion. A call made while the same animator is already dispatching (from an `onStateChange` / `onComplete` listener, or any callback the dispatch invokes) is appended to a FIFO mailbox and returns at once; after the outer call's last notification (and its `onEnd` auto-transition) the mailbox drains in order, each entry running the full update or reset before the next. `setInput()` / `fireTrigger()` only write the input store and are never queued. `dispose()` is never queued: it runs at once, clears the mailbox, and the drain stops. If a listener or a queued entry throws, the mailbox is cleared, the dispatching flag is reset, and the error propagates from the outermost call; the state stays at the last committed transition. Two animators have independent mailboxes. A listener that queues a call on every notification of a graph that always transitions keeps the drain running.

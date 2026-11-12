@@ -115,7 +115,7 @@
       }
     },
     "initial": {
-      "description": "Initial state name. Defaults to the first declared state.",
+      "description": "Initial state name. Defaults to the first declared state. Required when any state name is integer-like (\"0\", \"1\", \"42\"), because JS enumerates such keys first and loses declaration order; the compiler throws InvalidGraphError without it.",
       "type": "string"
     },
     "defaultFrameDuration": {
