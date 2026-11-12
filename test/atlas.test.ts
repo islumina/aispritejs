@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   InvalidAtlasError,
-  type SpriteControl,
   loadAtlas,
   parseAtlas,
+  type SpriteControl,
 } from "../src/atlas/index.js";
 import { InvalidGraphError, type SpriteGraph } from "../src/index.js";
 

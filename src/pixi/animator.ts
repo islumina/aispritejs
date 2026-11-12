@@ -12,11 +12,11 @@ import type { Sprite, Spritesheet, Texture } from "pixi.js";
 import { assertGraphShape } from "../sprite/compile.js";
 import {
   type CompleteHandler,
+  createSpriteAnimator,
   type ListenerOptions,
   type SpriteGraph,
   type StateChangeHandler,
   type Unsubscribe,
-  createSpriteAnimator,
 } from "../sprite/index.js";
 
 /**

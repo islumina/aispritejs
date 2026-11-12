@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { SpriteAnimatorDisposedError, createSpriteAnimator } from "../src/index.js";
+import { createSpriteAnimator, SpriteAnimatorDisposedError } from "../src/index.js";
 import { clips, platformer } from "./fixtures/graphs.js";
 
 describe("initial state", () => {

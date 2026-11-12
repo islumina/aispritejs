@@ -1,7 +1,7 @@
 import type { Sprite, Spritesheet, Texture } from "pixi.js";
 import { describe, expect, it, vi } from "vitest";
 import { InvalidGraphError, type SpriteGraph } from "../src/index.js";
-import { MissingTextureError, createPixiSpriteAnimator } from "../src/pixi/index.js";
+import { createPixiSpriteAnimator, MissingTextureError } from "../src/pixi/index.js";
 
 // The adapter imports pixi.js type-only, so structural doubles drive it without
 // a renderer. `fakeTexture` carries just `defaultAnchor`; `makeSprite` records
