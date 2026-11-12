@@ -89,6 +89,13 @@ export function assertGraphShape(graph: SpriteGraph): void {
     if (!Array.isArray(list)) {
       throw new InvalidGraphError(`animation "${name}" must be an array of frame keys`);
     }
+    // Frame keys are looked up with `graph.frames?.[key]` / `Object.hasOwn`,
+    // which would stringify a non-string (["a"] -> "a"). for-of also visits holes.
+    for (const k of list) {
+      if (typeof k !== "string") {
+        throw new InvalidGraphError(`animation "${name}" frame keys must be strings`);
+      }
+    }
   }
 }
 

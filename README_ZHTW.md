@@ -84,7 +84,7 @@ view.dispose(); // dispose core animator；不 destroy Pixi sprite
 - 每個 animation（即使沒有任何 state 參照到它）裡的每個 frame key 都必須存在於 texture map/spritesheet，否則 adapter 會在 construction 時丟 `MissingTextureError`。值為 `null` / `undefined` 的 entry 也視為缺少。
 - texture map 若在 `textures` key 下放了物件，會被當成 `Spritesheet` 讀取；若真的有 frame 叫 `textures`，請傳入 `Spritesheet`（或 `{ textures: map }`），不要直接傳 map。
 - `duration`、`defaultFrameDuration`、state `speed` 都必須是 finite 且大於 0。
-- `initial`、state 的 `animation` / `onEnd`、transition 的 `from` / `to`、condition 的 `input` / `op` 都必須是 string，transition `priority` 必須是整數。
+- `initial`、animation 的 frame key、state 的 `animation` / `onEnd`、transition 的 `from` / `to`、condition 的 `input` / `op` 都必須是 string，transition `priority` 必須是整數。
 - `initial` 預設為第一個宣告的 state，但 JS 會把整數樣式的 key（`"0"`、`"1"`、`"42"`）排在其他 key 之前，所以只要有任一 state 名稱是整數樣式，就必須指定 `initial`，否則丟 `InvalidGraphError`。
 - `animations` 不可為空物件（`minProperties: 1`）；`duration`、`defaultFrameDuration` 上限為 86,400,000 ms（24 小時），state `speed` 上限為 1000——schema 與 runtime 已一致。
 

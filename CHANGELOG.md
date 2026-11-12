@@ -11,7 +11,8 @@ All notable changes to aispritejs are summarized here.
 ### Changes
 
 - Fixed: a looping state wraps its playback clock into one clip length on every `update()`, so a single huge finite `dt` (e.g. a nanosecond timestamp passed as milliseconds) no longer pushes the clock past float precision and freezes the clip on one frame until the state is re-entered.
-- Changed: size budgets in `scripts/check-size.mjs`: `dist/index.js` 4,400 -> 4,475 B, `dist/pixi/index.js` 5,200 -> 5,211 B and `dist/atlas/index.js` 5,500 -> 5,561 B for the integer-like state-name check, itemised in the script.
+- Fixed: `createSpriteAnimator()` / `createPixiSpriteAnimator()` throw `InvalidGraphError` (`animation "<name>" frame keys must be strings`) for a non-string frame key from untyped JSON (`null`, `42`, `["a"]`, an object, or an array hole) instead of compiling it, which made `activeFrameKey` return a non-string and let `["a"]` silently resolve to frame / texture `"a"`; the schema and `parseAtlas()` already required strings.
+- Changed: size budgets in `scripts/check-size.mjs`: `dist/index.js` 4,400 -> 4,502 B, `dist/pixi/index.js` 5,200 -> 5,237 B and `dist/atlas/index.js` 5,500 -> 5,587 B for the integer-like state-name and frame-key type checks, itemised in the script.
 
 ## [0.6.0] - 2026-09-29
 
