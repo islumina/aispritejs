@@ -111,13 +111,13 @@ export function createSpriteAnimator(graph: SpriteGraph): SpriteAnimator {
 
   function processUpdate(deltaMs: number): void {
     // Advance the playback timer (non-finite or non-positive dt clamped to 0 for determinism).
-    // NOTE: `elapsed` accumulates without bound in looping states (intentional design choice).
-    // Drift from floating-point accumulation is sub-ULP-relevant only after continuous play
-    // on the order of years; a periodic reset (e.g. on state entry) would be premature.
     // A step that would overflow `elapsed` to Infinity (whose `% total` is NaN) is
     // dropped: clamped to no progress, like an invalid dt.
+    // A looping state keeps `elapsed` wrapped into [0, total), which the frame
+    // lookup below relies on: an unwrapped clock pushed past 2^53 by one huge
+    // finite dt would absorb every later step and freeze the clip.
     const next = elapsed + (Number.isFinite(deltaMs) && deltaMs > 0 ? deltaMs : 0) * current.speed;
-    if (Number.isFinite(next)) elapsed = next;
+    if (Number.isFinite(next)) elapsed = current.loop ? next % current.total : next;
 
     // Evaluate input-driven transitions first; an explicit transition wins over
     // implicit end-of-clip behaviour.
@@ -135,11 +135,11 @@ export function createSpriteAnimator(graph: SpriteGraph): SpriteAnimator {
       activeFrameIndex = n - 1;
       ended = true;
     } else {
-      const t = cs.loop ? elapsed % cs.total : elapsed;
+      // A looping state's `elapsed` is already wrapped into [0, total).
       let i = 0;
-      // First index whose cumulative end exceeds t (i < n-1 keeps it in range,
-      // and t < total guarantees a match no later than the last frame).
-      while (i < n - 1 && t >= cs.cumulative[i]!) i++;
+      // First index whose cumulative end exceeds elapsed (i < n-1 keeps it in
+      // range, and elapsed < total guarantees a match no later than the last frame).
+      while (i < n - 1 && elapsed >= cs.cumulative[i]!) i++;
       activeFrameIndex = i;
     }
     activeFrameKey = cs.frameKeys[activeFrameIndex]!;

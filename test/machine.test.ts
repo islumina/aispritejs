@@ -319,7 +319,8 @@ describe("frame timing", () => {
     a.update(0); // → walk: 4 × 100 ms, looping
     a.update(Number.MAX_VALUE); // finite: MAX_VALUE % 400 = 368 → frame 3
     expect(a.activeFrameIndex).toBe(3);
-    a.update(Number.MAX_VALUE); // MAX_VALUE + MAX_VALUE overflows → dropped
+    // elapsed was wrapped to 368, so 368 + MAX_VALUE stays finite: MAX_VALUE % 400 → frame 3
+    a.update(Number.MAX_VALUE);
     expect(Number.isInteger(a.activeFrameIndex)).toBe(true);
     expect(a.activeFrameIndex).toBe(3);
     expect(a.activeFrameKey).toBe("walk_3");

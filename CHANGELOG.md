@@ -10,6 +10,7 @@ All notable changes to aispritejs are summarized here.
 
 ### Changes
 
+- Fixed: a looping state wraps its playback clock into one clip length on every `update()`, so a single huge finite `dt` (e.g. a nanosecond timestamp passed as milliseconds) no longer pushes the clock past float precision and freezes the clip on one frame until the state is re-entered.
 - Changed: size budgets in `scripts/check-size.mjs`: `dist/index.js` 4,400 -> 4,475 B, `dist/pixi/index.js` 5,200 -> 5,211 B and `dist/atlas/index.js` 5,500 -> 5,561 B for the integer-like state-name check, itemised in the script.
 
 ## [0.6.0] - 2026-09-29

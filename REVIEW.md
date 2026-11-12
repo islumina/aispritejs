@@ -40,6 +40,7 @@ Current review state after the 2026-09-29 ai*js 0.6.0 pass.
 - 0.6.0 docs: corrected the Spritesheet-detection workaround for a frame named `textures` (the old `spritesheet.textures` advice hit the same misdetection).
 - 0.6.0 size: the dead onEnd guard clauses and `CompiledState.animation` field, the duplicated input-default and duration/speed gates, and comments esbuild kept inside object literals were removed; `reset()` reuses `enter()`.
 - A graph without `initial` whose state names include an integer-like key now throws `InvalidGraphError` instead of silently starting in that key (JS enumerates array-index keys first, so declaration order is lost).
+- A looping state wraps `elapsed` into `[0, total)` on every step, so one huge finite `dt` (1e18 ms) can no longer freeze the clip by absorbing every later step.
 
 ## Verification Baseline
 
